@@ -2,16 +2,13 @@ from vllm import LLM, SamplingParams
 
 # Sample prompts.
 prompts = [
-    "Hello, my name is",
-    "The president of the United States is",
-    "The capital of France is",
-    "The future of AI is",
+    "What is OpenVINO?",
 ]
 # Create a sampling params object.
 sampling_params = SamplingParams(temperature=0, seed=42, max_tokens=30)
 
 # Create an LLM.
-llm = LLM(model="facebook/opt-125m")
+llm = LLM(model="allenai/OLMo-1B-hf")
 # Generate texts from the prompts. The output is a list of RequestOutput objects
 # that contain the prompt, generated text, and other information.
 outputs = llm.generate(prompts, sampling_params)
@@ -26,7 +23,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, set_seed
 
 set_seed(42)
 
-model_id = "facebook/opt-125m"
+model_id = "allenai/OLMo-1B-hf"
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 model = AutoModelForCausalLM.from_pretrained(model_id)
 

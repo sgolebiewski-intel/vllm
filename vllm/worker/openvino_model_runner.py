@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 import torch
 from torch import nn
@@ -14,8 +14,23 @@ from vllm.sequence import SamplerOutput, SequenceGroupMetadata
 
 logger = init_logger(__name__)
 
-_PAD_SLOT_ID = -1
 
+class ModelInput(NamedTuple):
+    input_tokens: torch.Tensor
+    input_positions: torch.Tensor
+    attn_metadata: Optional[OpenVINOAttentionMetadata]
+    seq_lens: List[int]
+    query_lens: List[int]
+
+    @classmethod
+    def empty(cls, device):
+        return ModelInput(
+            input_tokens=torch.empty(0, device=device),
+            input_positions=torch.empty(0, device=device),
+            attn_metadata=None,
+            seq_lens=[],
+            query_lens=[]
+        )
 
 class OpenVINOModelRunner:
 
@@ -71,15 +86,23 @@ class OpenVINOModelRunner:
             device_config=self.device_config,
             kv_cache_dtype=self.kv_cache_dtype)
 
-
-    def _prepare_prompt(
+    def _prepare_model_input(
         self,
         seq_group_metadata_list: List[SequenceGroupMetadata],
-    ) -> Tuple[torch.Tensor, torch.Tensor, OpenVINOAttentionMetadata, List[int],
-               Optional[torch.Tensor]]:
-        assert len(seq_group_metadata_list) > 0
+    ) -> ModelInput:
+        """Prepare the model input based on a given sequence group.
+
+        The API assumes seq_group_metadata_list is sorted by prefill -> decode.
+
+        The result tensors and data structure also batches input in prefill
+        -> decode order. For example,
+
+        - input_tokens[:num_prefill_tokens] contains prefill tokens.
+        - input_tokens[num_prefill_tokens:] contains decode tokens.
+        """
         input_tokens: List[int] = []
         input_positions: List[int] = []
+
         seq_lens: List[int] = []
         past_lens: List[int] = []
         query_lens: List[int] = []
@@ -92,49 +115,107 @@ class OpenVINOModelRunner:
         subsequence_begins.append(0)
         block_indices_begins.append(0)
 
+        if len(seq_group_metadata_list) == 0:
+            return ModelInput.empty(self.device)
+
         for seq_group_metadata in seq_group_metadata_list:
-            assert seq_group_metadata.is_prompt
             seq_ids = list(seq_group_metadata.seq_data.keys())
-            assert len(seq_ids) == 1
-            seq_id = seq_ids[0]
+            is_prompt = seq_group_metadata.is_prompt
 
-            seq_data = seq_group_metadata.seq_data[seq_id]
-            block_table = seq_group_metadata.block_tables[seq_id]
-            prompt_tokens = seq_data.get_token_ids()
-            computed_len = seq_data.get_num_computed_tokens()
-            prompt_len = len(prompt_tokens)
+            for seq_id in seq_ids:
+                computed_block_nums = seq_group_metadata.computed_block_nums
+                if (self.scheduler_config is not None
+                        and self.scheduler_config.chunked_prefill_enabled
+                        and not (computed_block_nums is None
+                                 or computed_block_nums == [])):
+                    raise RuntimeError(
+                        "chunked prefill cannot be used with prefix caching "
+                        "now.")
 
-            computed_block_nums = seq_group_metadata.computed_block_nums
-            # Prefix cache was hit.
-            # Prefix is not supported with sliding_window
-            prefix_cache_hit = (computed_block_nums is not None
-                                and len(computed_block_nums) > 0
-                                and self.sliding_window is None)
+                seq_data = seq_group_metadata.seq_data[seq_id]
+                if is_prompt:
+                    computed_len = seq_data.get_num_computed_tokens()
+                else:
+                    # get_num_computed_tokens is incorrect for spec decoding.
+                    # So, we should have a special logic here.
+                    # TODO(sang): Fix it.
+                    computed_len = seq_data.get_len() - 1
 
-            if prefix_cache_hit:
-                computed_len = len(computed_block_nums) * self.block_size
-                prompt_tokens = prompt_tokens[computed_len:]
+                seq_len = min(
+                    seq_data.get_len(),
+                    computed_len + seq_group_metadata.token_chunk_size)
+                if is_prompt:
+                    tokens = seq_data.get_token_ids()[computed_len:seq_len]
+                else:
+                    # Optimization. get_token_ids requires the entire copy of
+                    # tokens.
+                    tokens = [seq_data.get_last_token_id()]
 
-            input_tokens.extend(prompt_tokens)
-            seq_lens.append(prompt_len)
+                # Prefix cache was hit.
+                # Prefix is not supported with sliding_window
+                prefix_cache_hit = (computed_block_nums is not None
+                                    and len(computed_block_nums) > 0
+                                    and self.sliding_window is None
+                                    and is_prompt)
 
-            # Token position ids
-            # NOTE(woosuk): Here we assume that the first token in the prompt
-            # is always the first token in the sequence.
-            input_positions.extend(list(range(computed_len, prompt_len)))
+                block_table = seq_group_metadata.block_tables[seq_id]
+                # TODO(sang): Combine chunked prefill and prefix caching by
+                # only allowing multiple of block_size chunk size.
+                # NOTE: This only works for oooooooxxx style attention.
+                if prefix_cache_hit:
+                    assert computed_block_nums is not None
+                    computed_len = len(computed_block_nums) * self.block_size
+                    tokens = tokens[computed_len:]
+                elif (self.scheduler_config.chunked_prefill_enabled
+                      or not is_prompt):
+                    if seq_group_metadata.block_tables is not None:
+                        # chunked prefill or decode
+                        block_table = seq_group_metadata.block_tables[seq_id]
+                        if self.sliding_window is not None:
+                            # chunked prefill doesn't support sliding window.
+                            assert (not self.scheduler_config.
+                                    chunked_prefill_enabled)
+                            sliding_window_blocks = (self.sliding_window //
+                                                     self.block_size)
+                            block_table = block_table[-sliding_window_blocks:]
+                    else:
+                        # Only happens when memory profiling runs.
+                        block_table = []
+                else:
+                    # prompt phase w/o prefix_caching, chunked_prefill
+                    pass
 
-            past_lens.append(computed_len)
+                block_indices.extend(block_table)
+                block_indices_begins.append(block_indices_begins[-1] + len(block_table))
 
-            subsequence_len = prompt_len - computed_len
-            query_lens.append(subsequence_len)
-            subsequence_begins.append(subsequence_begins[-1] + subsequence_len)
+                # TODO(sang): This is a hack to make sliding window work with
+                # paged attn. We can remove it if we make paged attn kernel
+                # to properly handle slinding window attn.
+                if (self.sliding_window is not None and not is_prompt):
+                    seq_len = min(seq_len, self.sliding_window)
+                    computed_len = seq_len - 1
 
-            block_indices.extend(block_table)
-            block_indices_begins.append(block_indices_begins[-1] + len(block_table))
+                seq_lens.append(seq_len)
 
-            if seq_group_metadata.multi_modal_data:
-                multi_modal_input_list.append(
-                    seq_group_metadata.multi_modal_data.data)
+                query_len = seq_len - computed_len
+                query_lens.append(query_len)
+
+                input_tokens.extend(tokens)
+                input_positions.extend(list(range(computed_len, seq_len)))
+
+                past_lens.append(computed_len)
+                subsequence_begins.append(subsequence_begins[-1] + query_len)
+
+                if is_prompt:
+                    assert len(seq_ids) == 1
+                else:
+                    assert query_len == 1, (
+                        "seq_len: {}, computed_len: {}, query_len: {}".format(
+                            seq_len, computed_len, query_len))
+
+
+        max_query_len = max(query_lens)
+        assert max_query_len > 0, ("query_lens: {}".format(query_lens))
 
         if multi_modal_input_list:
             assert self.vision_language_config, (
@@ -170,6 +251,14 @@ class OpenVINOModelRunner:
                                               dtype=torch.int32,
                                               device=self.device)  # type: ignore
 
+        # print(f'\ninput_tokens {input_tokens}')
+        # print(f'input_positions {input_positions}')
+        # print(f'past_lens_tensor {past_lens_tensor}')
+        # print(f'subsequence_begins_tensor {subsequence_begins_tensor}')
+        # print(f'block_indices_tensor {block_indices_tensor}')
+        # print(f'block_indices_begins_tensor {block_indices_begins_tensor}')
+        # print(f'max_context_len_tensor {max_context_len_tensor}')
+
         attn_metadata = self.attn_backend.make_metadata(
             past_lens = past_lens_tensor,
             subsequence_begins = subsequence_begins_tensor,
@@ -180,91 +269,6 @@ class OpenVINOModelRunner:
         return (input_tokens, input_positions, attn_metadata,
                 seq_lens, query_lens, multi_modal_input)
 
-    def _prepare_decode(
-        self,
-        seq_group_metadata_list: List[SequenceGroupMetadata],
-    ) -> Tuple[torch.Tensor, torch.Tensor, OpenVINOAttentionMetadata]:
-        assert len(seq_group_metadata_list) > 0
-        input_tokens: List[int] = []
-        input_positions: List[int] = []
-        seq_lens: List[int] = []
-        past_lens: List[int] = []
-        subsequence_begins: List[int] = []
-        block_indices: List[int] = []
-        block_indices_begins: List[int] = []
-
-        # initialize beginning of prefix sums
-        subsequence_begins.append(0)
-        block_indices_begins.append(0)
-
-        for seq_group_metadata in seq_group_metadata_list:
-            assert not seq_group_metadata.is_prompt
-            assert seq_group_metadata.token_chunk_size == 1
-
-            seq_ids = list(seq_group_metadata.seq_data.keys())
-
-            for seq_id in seq_ids:
-                seq_data = seq_group_metadata.seq_data[seq_id]
-                generation_token = seq_data.get_last_token_id()
-                input_tokens.append(generation_token)
-
-                seq_len = seq_data.get_len()
-                computed_len = position = seq_len - 1
-                input_positions.append(position)
-
-                seq_len = seq_len if self.sliding_window is None else min(
-                    seq_len, self.sliding_window)
-                seq_lens.append(seq_len)
-
-                past_lens.append(computed_len)
-                subsequence_begins.append(subsequence_begins[-1] + 1) # 1 is a number of scheduled tokens
-
-                block_table = seq_group_metadata.block_tables[seq_id]
-                if self.sliding_window is not None:
-                    sliding_window_blocks = (self.sliding_window //
-                                             self.block_size)
-                    block_table = block_table[-sliding_window_blocks:]
-                block_indices.extend(block_table)
-                block_indices_begins.append(block_indices_begins[-1] + len(block_table))
-
-        input_tokens = torch.tensor(input_tokens,
-                                    dtype=torch.long,
-                                    device=self.device)
-        input_positions = torch.tensor(input_positions,
-                                       dtype=torch.long,
-                                       device=self.device)
-
-        past_lens_tensor = torch.tensor(past_lens,
-                                        dtype=torch.int32,
-                                        device=self.device)  # type: ignore
-        subsequence_begins_tensor = torch.tensor(subsequence_begins,
-                                                 dtype=torch.int32,
-                                                 device=self.device)  # type: ignore
-        block_indices_tensor = torch.tensor(block_indices,
-                                            dtype=torch.int32,
-                                            device=self.device)  # type: ignore
-        block_indices_begins_tensor = torch.tensor(block_indices_begins,
-                                                   dtype=torch.int32,
-                                                   device=self.device)  # type: ignore
-
-        max_context_len = max(seq_lens)
-        max_context_len_tensor = torch.tensor(max_context_len,
-                                              dtype=torch.int32,
-                                              device=self.device)  # type: ignore
-
-        attn_metadata = self.attn_backend.make_metadata(
-            past_lens = past_lens_tensor,
-            subsequence_begins = subsequence_begins_tensor,
-            block_indices = block_indices_tensor,
-            block_indices_begins = block_indices_begins_tensor,
-            max_context_len = max_context_len_tensor
-        )
-        return (
-            input_tokens,
-            input_positions,
-            attn_metadata,
-        )
-
     def prepare_input_tensors(
         self,
         seq_group_metadata_list: List[SequenceGroupMetadata],
@@ -272,19 +276,15 @@ class OpenVINOModelRunner:
                Optional[torch.Tensor]]:
         multi_modal_input = None
 
-        # NOTE: We assume that all sequences in the group are all prompts or
-        # all decodes.
-        is_prompt = seq_group_metadata_list[0].is_prompt
         # Prepare input tensors.
-        if is_prompt:
-            (input_tokens, input_positions, attn_metadata,
-                seq_lens, query_lens, multi_modal_input
-                ) = self._prepare_prompt(seq_group_metadata_list)
-        else:
-            (input_tokens, input_positions,
-                attn_metadata) = self._prepare_decode(seq_group_metadata_list)
-            seq_lens = []
-            query_lens = []
+        (
+            input_tokens,
+            input_positions,
+            attn_metadata,
+            seq_lens,
+            query_lens,
+            multi_modal_input,
+        ) = self._prepare_model_input(seq_group_metadata_list)
 
         sampling_metadata = SamplingMetadata.prepare(
             seq_group_metadata_list,
@@ -320,10 +320,6 @@ class OpenVINOModelRunner:
 
         # Compute the logits.
         logits = self.model.compute_logits(hidden_states, sampling_metadata)
-
-        # Only perform sampling in the driver worker.
-        if not self.is_driver_worker:
-            return None
 
         # Sample the next token.
         output = self.model.sample(
