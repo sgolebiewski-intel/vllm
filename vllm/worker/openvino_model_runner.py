@@ -52,8 +52,6 @@ class OpenVINOModelRunner:
         self.model_config = model_config
         self.parallel_config = parallel_config
         self.scheduler_config = scheduler_config
-        # Currently, CPU worker doesn't support chunked prefill.
-        assert self.scheduler_config.chunked_prefill_enabled is False
         self.device_config = device_config
         self.cache_config = cache_config
         self.lora_config = lora_config
@@ -250,14 +248,6 @@ class OpenVINOModelRunner:
         max_context_len_tensor = torch.tensor(max_context_len,
                                               dtype=torch.int32,
                                               device=self.device)  # type: ignore
-
-        # print(f'\ninput_tokens {input_tokens}')
-        # print(f'input_positions {input_positions}')
-        # print(f'past_lens_tensor {past_lens_tensor}')
-        # print(f'subsequence_begins_tensor {subsequence_begins_tensor}')
-        # print(f'block_indices_tensor {block_indices_tensor}')
-        # print(f'block_indices_begins_tensor {block_indices_begins_tensor}')
-        # print(f'max_context_len_tensor {max_context_len_tensor}')
 
         attn_metadata = self.attn_backend.make_metadata(
             past_lens = past_lens_tensor,

@@ -24,8 +24,6 @@ class OpenVINOExecutor(ExecutorBase):
         assert self.lora_config is None, "OpenVINO backend doesn't support LoRA"
         self.model_config = _verify_and_get_model_config(self.model_config)
         self.cache_config = _verify_and_get_cache_config(self.cache_config)
-        self.scheduler_config = _verify_and_get_scheduler_config(
-            self.scheduler_config)
 
         # Instantiate the worker and load the model to CPU.
         self._init_worker()
@@ -120,15 +118,6 @@ def _verify_and_get_model_config(config: ModelConfig) -> ModelConfig:
             "CUDA graph is not supported on OpenVINO backend, fallback to the eager "
             "mode.")
         config.enforce_eager = True
-    return config
-
-
-def _verify_and_get_scheduler_config(
-        config: SchedulerConfig) -> SchedulerConfig:
-    if config.chunked_prefill_enabled:
-        logger.warning("Chunked prefill is not supported on OpenVINO backend, disable it.")
-        config.chunked_prefill_enabled = False
-
     return config
 
 
