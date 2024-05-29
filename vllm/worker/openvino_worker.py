@@ -39,6 +39,12 @@ class OpenVINOCacheEngine:
         self.parallel_config = parallel_config
 
         self.head_size = model_config.get_head_size()
+        if device_config.device.type == "cpu":
+            if cache_config.cache_dtype == ov.Type.u8:
+                # Scale, zero point and quantized data will be stored together.
+                # The layout for per token per head:
+                # |scale(f32)|zeropoint(f32)|quantized data(u8,idx_1)|quantized data(u8,idx_2)|...|quantized data(u8,idx_head_size)|
+                self.head_size += 8
         self.num_layers = model_config.get_num_layers(parallel_config)
         self.num_heads = model_config.get_num_kv_heads(parallel_config)
 

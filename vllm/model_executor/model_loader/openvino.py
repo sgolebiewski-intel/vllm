@@ -61,12 +61,13 @@ def _modify_cache_parameters(
         x_size = 1  # use real block size if available, just a placeholder to provide the expected rank
         num_blocks = ov.Dimension()
         block_size = ov.Dimension()
+        head_size = ov.Dimension()
         # TODO: Negotiate required layout with plugins (CPU is ~OK, GPU is TBD), pass more parameters to this function to set more static dimensions
         if input_name.startswith('key_cache.'):
-            cpu_shape = [num_blocks, shape[1], block_size, shape[2]]
+            cpu_shape = [num_blocks, shape[1], block_size, head_size]
             gpu_shape = [num_blocks, shape[1], shape[2].get_length() // x_size if shape[2].is_static else ov.Dimension(), block_size, x_size]
         elif input_name.startswith('value_cache.'):
-            cpu_shape = [num_blocks, shape[1], block_size, shape[2]]
+            cpu_shape = [num_blocks, shape[1], block_size, head_size]
             gpu_shape = [num_blocks, shape[1], shape[2], block_size]
         else:
             continue
