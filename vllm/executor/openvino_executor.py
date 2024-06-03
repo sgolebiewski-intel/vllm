@@ -1,9 +1,9 @@
 import os
-from typing import Dict, List, Set, Tuple
+from typing import List, Set, Tuple
 
 import torch
 
-from vllm.config import CacheConfig, ModelConfig, SchedulerConfig
+from vllm.config import CacheConfig, ModelConfig
 from vllm.executor.executor_base import ExecutorAsyncBase, ExecutorBase
 from vllm.logger import init_logger
 from vllm.lora.request import LoRARequest
@@ -73,9 +73,7 @@ class OpenVINOExecutor(ExecutorBase):
         logger.info("# CPU blocks: %d", num_gpu_blocks)
         self.driver_worker.initialize_cache(num_gpu_blocks, num_cpu_blocks)
 
-    def execute_model(
-            self,
-            execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
+    def execute_model(self, execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
         output = self.driver_worker.execute_model(execute_model_req)
         return output
 

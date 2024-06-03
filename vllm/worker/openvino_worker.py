@@ -15,7 +15,6 @@ from vllm.distributed import (broadcast_tensor_dict,
 from vllm.logger import init_logger
 from vllm.model_executor import set_random_seed
 from vllm.sequence import ExecuteModelRequest, SamplerOutput
-from vllm.utils import STR_DTYPE_TO_TORCH_DTYPE
 from vllm.worker.openvino_model_runner import OpenVINOModelRunner
 from vllm.worker.worker_base import LoraNotSupportedWorkerBase
 
@@ -30,7 +29,8 @@ class OpenVINOCacheEngine:
     as copying.
     """
 
-    def __init__(self, cache_config: CacheConfig, model_config: ModelConfig,
+    def __init__(self, cache_config: CacheConfig,
+                 model_config: ModelConfig,
                  parallel_config: ParallelConfig,
                  device_config: DeviceConfig) -> None:
         assert device_config.device_type == "openvino"
@@ -40,7 +40,7 @@ class OpenVINOCacheEngine:
 
         self.head_size = model_config.get_head_size()
         self.num_layers = model_config.get_num_layers(parallel_config)
-        self.num_heads = model_config.get_num_kv_heads(parallel_config)
+        self.num_kv_heads = model_config.get_num_kv_heads(parallel_config)
 
         self.block_size = cache_config.block_size
         # Note: In CacheConfig, num_gpu_blocks actual is num_cpu_blocks
@@ -48,26 +48,31 @@ class OpenVINOCacheEngine:
         # in the scheduler.
         self.num_cpu_blocks = cache_config.num_gpu_blocks
 
+        # Get attention backend.
+        self.attn_backend = get_attn_backend(
+            self.model_config.get_num_attention_heads(self.parallel_config),
+            self.model_config.get_head_size(),
+            self.model_config.get_num_kv_heads(self.parallel_config),
+            self.model_config.get_sliding_window(),
+            self.model_config.dtype,
+            self.cache_config.cache_dtype,
+            self.block_size,
+        )
+
         # Initialize the cache.
-        self.kv_cache = self._allocate_kv_cache(self.num_cpu_blocks)
-
-    def _get_key_block_shape(self) -> Tuple[int, int, int, int]:
-        return (self.num_heads, self.block_size, self.head_size)
-
-    def _get_value_block_shape(self) -> Tuple[int, int, int]:
-        return (self.num_heads, self.block_size, self.head_size)
+        self.kv_cache: List[Tuple[ov.Tensor, ov.Tensor]] = self._allocate_kv_cache(self.num_cpu_blocks)
 
     def _allocate_kv_cache(
         self,
         num_blocks: int,
     ) -> List[Tuple[ov.Tensor, ov.Tensor]]:
         """Allocates KV cache."""
-        key_block_shape = (self.num_cpu_blocks, *self._get_key_block_shape())
-        value_block_shape = (self.num_cpu_blocks, *self._get_value_block_shape())
+        k_block_shape = v_block_shape = self.attn_backend.get_kv_cache_shape(
+            num_blocks, self.block_size, self.num_kv_heads, self.head_size)[1:]
         kv_cache: List[Tuple[ov.Tensor, ov.Tensor]] = []
         for _ in range(self.num_layers):
-            key_blocks = ov.Tensor(self.cache_config.cache_dtype, key_block_shape)
-            value_blocks = ov.Tensor(self.cache_config.cache_dtype, value_block_shape)
+            key_blocks = ov.Tensor(self.cache_config.cache_dtype, k_block_shape)
+            value_blocks = ov.Tensor(self.cache_config.cache_dtype, v_block_shape)
             kv_cache.append((key_blocks, value_blocks))
         return kv_cache
 
@@ -78,11 +83,7 @@ class OpenVINOCacheEngine:
         raise NotImplementedError("Swap is not supported in OpenVINOCacheEngine.")
 
     def copy(self, src_to_dsts: Dict[int, List[int]]) -> None:
-        for src, dsts in src_to_dsts.items():
-            for dst in dsts:
-                for key_cache, value_cache in self.kv_cache:
-                    key_cache.data[dst, :] = key_cache.data[src, :]
-                    value_cache.data[dst, :] = value_cache.data[src, :]
+        self.attn_backend.copy_blocks(self.kv_cache, src_to_dsts)
 
     @staticmethod
     def get_cache_block_size(
@@ -92,7 +93,7 @@ class OpenVINOCacheEngine:
         parallel_config: ParallelConfig,
     ) -> int:
         head_size = model_config.get_head_size()
-        num_heads = model_config.get_num_kv_heads(parallel_config)
+        num_kv_heads = model_config.get_num_kv_heads(parallel_config)
         num_layers = model_config.get_num_layers(parallel_config)
 
         if cache_dtype == ov.Type.u8:
@@ -101,7 +102,7 @@ class OpenVINOCacheEngine:
             # |scale(f32)|zeropoint(f32)|quantized data(u8,idx_1)|quantized data(u8,idx_2)|...|quantized data(u8,idx_head_size)|
             head_size += 8
 
-        key_cache_block = block_size * num_heads * head_size
+        key_cache_block = block_size * num_kv_heads * head_size
         value_cache_block = key_cache_block
         total = num_layers * (key_cache_block + value_cache_block)
         dtype_size = cache_dtype.size
@@ -255,10 +256,9 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
 
     def cache_copy(
         self,
-        blocks_to_copy: torch.Tensor,
+        blocks_to_copy: List[Tuple[int, int]],
     ) -> None:
-        if blocks_to_copy.numel() > 0:
-            self.cache_engine.copy(blocks_to_copy)
+        self.cache_engine.copy(blocks_to_copy)
 
     @torch.inference_mode()
     def execute_model(
@@ -276,9 +276,6 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
             num_seq_groups: int = len(seq_group_metadata_list)
             assert execute_model_req is not None
             blocks_to_copy = execute_model_req.blocks_to_copy
-            blocks_to_copy = torch.tensor(execute_model_req.blocks_to_copy,
-                                          device="cpu",
-                                          dtype=torch.int64).view(-1, 2)
             assert len(execute_model_req.blocks_to_swap_in) == 0
             assert len(execute_model_req.blocks_to_swap_out) == 0
             data: Dict[str, Any] = {

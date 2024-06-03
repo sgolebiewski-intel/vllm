@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import torch
 from vllm.attention.backends.abstract import (AttentionBackend)
 
+import openvino as ov
 
 class OpenVINOAttentionBackend(AttentionBackend):
 
@@ -13,6 +14,7 @@ class OpenVINOAttentionBackend(AttentionBackend):
 
     @staticmethod
     def get_impl_cls():
+        # OpenVINO implements PagedAttention as part of the optimum exported model
         raise NotImplementedError
 
     @staticmethod
@@ -26,22 +28,27 @@ class OpenVINOAttentionBackend(AttentionBackend):
         num_kv_heads: int,
         head_size: int,
     ) -> Tuple[int, ...]:
-        raise NotImplementedError
+        return (2, num_blocks, num_kv_heads, block_size, head_size)
 
     @staticmethod
     def swap_blocks(
-        src_kv_cache: torch.Tensor,
-        dst_kv_cache: torch.Tensor,
+        src_kv_cache: ov.Tensor,
+        dst_kv_cache: ov.Tensor,
         src_to_dst: torch.Tensor,
     ) -> None:
+        # OpenVINO currently supports only CPU, which does not require
+        # swap of KV cache blocks
         raise NotImplementedError
 
     @staticmethod
     def copy_blocks(
-        kv_caches: List[torch.Tensor],
-        src_to_dists: torch.Tensor,
+        kv_caches: List[Tuple[ov.Tensor, ov.Tensor]],
+        src_to_dists: List[Tuple[int, int]],
     ) -> None:
-        raise NotImplementedError
+        for src, dst in src_to_dists:
+            for key_cache, value_cache in kv_caches:
+                key_cache.data[dst, :] = key_cache.data[src, :]
+                value_cache.data[dst, :] = value_cache.data[src, :]
 
 
 @dataclass
