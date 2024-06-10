@@ -86,7 +86,7 @@ def _modify_cache_parameters(
 def _require_model_export(model_id, revision=None, subfolder=None):
     # Stored IR may not be suitable for vLLM purposes (too old, 
     # not stateful, not compressed etc.). This is an option to override
-    # IR usage logic and alway do model conversion.
+    # IR usage logic and always do model conversion.
     if os.environ.get("VLLM_OPENVINO_OPTIMUM_FORCE_CONVERSION", "0") == "1":
         return True
     model_dir = Path(model_id)
@@ -147,7 +147,7 @@ class OpenVINOCasualLM(nn.Module):
             )
         else:
             logger.warning(
-                "[ INFO ] OpenVINO IR is avaialble for provided model id " # noqa: G004
+                "[ INFO ] OpenVINO IR is available for provided model id " # noqa: G004
                 f"{model_config.model}. This IR will be used for inference "
                 "as-is, all possible options that may affect model conversion "
                 "are ignored."
