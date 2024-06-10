@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import openvino as ov
 import torch
@@ -21,7 +21,11 @@ class OpenVINOAttentionBackend(AttentionBackend):
         raise NotImplementedError
 
     @staticmethod
-    def make_metadata(*args, **kwargs) -> "OpenVINOAttentionMetadata":
+    def make_metadata(*args, **kwargs) -> "AttentionMetadata":
+        raise NotImplementedError
+
+    @staticmethod
+    def make_openvino_metadata(*args, **kwargs) -> "OpenVINOAttentionMetadata":
         return OpenVINOAttentionMetadata(*args, **kwargs)
 
     @staticmethod
@@ -55,7 +59,7 @@ class OpenVINOAttentionBackend(AttentionBackend):
 
 
 @dataclass
-class OpenVINOAttentionMetadata(AttentionMetadata):
+class OpenVINOAttentionMetadata:
     """Metadata for OpenVINOAttentionBackend.
     """
     past_lens: torch.Tensor
@@ -63,13 +67,3 @@ class OpenVINOAttentionMetadata(AttentionMetadata):
     block_indices: torch.Tensor
     block_indices_begins: torch.Tensor
     max_context_len: torch.Tensor
-
-    @property
-    def prefill_metadata(self) -> Optional["AttentionMetadata"]:
-        # OpenVINO uses its own metadata format
-        raise NotImplementedError
-
-    @property
-    def decode_metadata(self) -> Optional["AttentionMetadata"]:
-        # OpenVINO uses its own metadata format
-        raise NotImplementedError

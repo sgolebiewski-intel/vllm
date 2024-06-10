@@ -254,7 +254,7 @@ class OpenVINOModelRunner:
             max_context_len, dtype=torch.int32,
             device=self.device)  # type: ignore
 
-        attn_metadata = self.attn_backend.make_metadata(
+        attn_metadata = self.attn_backend.make_openvino_metadata(
             past_lens=past_lens_tensor,
             subsequence_begins=subsequence_begins_tensor,
             block_indices=block_indices_tensor,
