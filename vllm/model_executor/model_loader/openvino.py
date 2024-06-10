@@ -7,6 +7,7 @@ import openvino as ov
 import torch
 from huggingface_hub import HfApi
 from openvino._offline_transformations import paged_attention_transformation
+from optimum.intel import OVModelForCausalLM
 from torch import nn
 
 from vllm.attention.backends.openvino import OpenVINOAttentionMetadata
@@ -150,15 +151,7 @@ class OpenVINOCasualLM(nn.Module):
                 "are ignored."
             )
 
-        load_in_8bit = (
-            False
-            if os.environ.get("VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS", "1")
-            == "0"
-            else None
-        )
-
-        from optimum.intel import OVModelForCausalLM
-
+        load_in_8bit = os.environ.get("VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS", "0") == "1" # noqa: E501
         pt_model = OVModelForCausalLM.from_pretrained(
             model_config.model,
             export=export,

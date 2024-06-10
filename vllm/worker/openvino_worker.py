@@ -285,7 +285,7 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
         self,
         blocks_to_copy: List[Tuple[int, int]],
     ) -> None:
-        self.cache_engine.copy(blocks_to_copy)
+        self.cache_engine.copy(blocks_to_copy) # type: ignore
 
     @torch.inference_mode()
     def execute_model(

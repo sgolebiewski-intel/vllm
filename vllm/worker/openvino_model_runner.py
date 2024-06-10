@@ -23,6 +23,7 @@ class ModelInput(NamedTuple):
     attn_metadata: Optional[OpenVINOAttentionMetadata]
     seq_lens: List[int]
     query_lens: List[int]
+    multi_modal_input: Optional[torch.Tensor]
 
     @classmethod
     def empty(cls, device):
@@ -32,6 +33,7 @@ class ModelInput(NamedTuple):
             attn_metadata=None,
             seq_lens=[],
             query_lens=[],
+            multi_modal_input=None
         )
 
 
@@ -79,7 +81,6 @@ class OpenVINOModelRunner:
 
         # Lazy initialization.
         self.model: nn.Module  # Set after init_Model
-        self.block_size: int  # Set after initial profiling.
 
     def load_model(self) -> None:
         self.model = get_model(
@@ -274,7 +275,7 @@ class OpenVINOModelRunner:
             block_indices_begins=block_indices_begins_tensor,
             max_context_len=max_context_len_tensor,
         )
-        return (
+        return ModelInput(
             input_tokens,
             input_positions,
             attn_metadata,
