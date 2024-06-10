@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 import torch
 from vllm.attention.backends.abstract import (AttentionBackend)
@@ -14,7 +14,8 @@ class OpenVINOAttentionBackend(AttentionBackend):
 
     @staticmethod
     def get_impl_cls():
-        # OpenVINO implements PagedAttention as part of the optimum exported model
+        # OpenVINO implements PagedAttention as part of the optimum 
+        # exported model
         raise NotImplementedError
 
     @staticmethod

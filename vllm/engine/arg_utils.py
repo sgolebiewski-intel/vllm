@@ -497,7 +497,8 @@ class EngineArgs:
         parser.add_argument("--device",
                             type=str,
                             default=EngineArgs.device,
-                            choices=["auto", "cuda", "neuron", "openvino", "cpu"],
+                            choices=["auto", "cuda", "neuron",
+                                     "openvino", "cpu"],
                             help='Device type for vLLM execution.')
 
         # Related to Vision-language models such as llava

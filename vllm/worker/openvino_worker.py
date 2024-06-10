@@ -6,12 +6,21 @@ import torch.distributed
 import openvino as ov
 
 from vllm.attention import get_attn_backend
-from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoRAConfig,
-                         ModelConfig, ParallelConfig, SchedulerConfig,
-                         VisionLanguageConfig)
-from vllm.distributed import (broadcast_tensor_dict,
-                              ensure_model_parallel_initialized,
-                              init_distributed_environment)
+from vllm.config import (
+    CacheConfig,
+    DeviceConfig,
+    LoadConfig,
+    LoRAConfig,
+    ModelConfig,
+    ParallelConfig,
+    SchedulerConfig,
+    VisionLanguageConfig,
+)
+from vllm.distributed import (
+    broadcast_tensor_dict,
+    ensure_model_parallel_initialized,
+    init_distributed_environment,
+)
 from vllm.logger import init_logger
 from vllm.model_executor import set_random_seed
 from vllm.sequence import ExecuteModelRequest, SamplerOutput
@@ -29,22 +38,25 @@ class OpenVINOCacheEngine:
     as copying.
     """
 
-    def __init__(self, cache_config: CacheConfig,
-                 model_config: ModelConfig,
-                 parallel_config: ParallelConfig,
-                 device_config: DeviceConfig) -> None:
+    def __init__(
+        self,
+        cache_config: CacheConfig,
+        model_config: ModelConfig,
+        parallel_config: ParallelConfig,
+        device_config: DeviceConfig,
+    ) -> None:
         assert device_config.device_type == "openvino"
         self.cache_config = cache_config
         self.model_config = model_config
         self.parallel_config = parallel_config
 
         self.head_size = model_config.get_head_size()
-        if device_config.device.type == "cpu":
-            if cache_config.cache_dtype == ov.Type.u8:
-                # Scale, zero point and quantized data will be stored together.
-                # The layout for per token per head:
-                # |scale(f32)|zeropoint(f32)|quantized data(u8,idx_1)|quantized data(u8,idx_2)|...|quantized data(u8,idx_head_size)|
-                self.head_size += 8
+        if device_config.device.type == "cpu" and \
+            cache_config.cache_dtype == ov.Type.u8:
+            # Scale, zero point and quantized data will be stored together.
+            # The layout for per token per head:
+            # |scale(f32)|zeropoint(f32)|quantized data(u8,idx_1)|quantized data(u8,idx_2)|...|quantized data(u8,idx_head_size)| # noqa: E501
+            self.head_size += 8
         self.num_layers = model_config.get_num_layers(parallel_config)
         self.num_kv_heads = model_config.get_num_kv_heads(parallel_config)
 
@@ -66,7 +78,9 @@ class OpenVINOCacheEngine:
         )
 
         # Initialize the cache.
-        self.kv_cache: List[Tuple[ov.Tensor, ov.Tensor]] = self._allocate_kv_cache(self.num_cpu_blocks)
+        self.kv_cache: List[
+            Tuple[ov.Tensor, ov.Tensor]
+        ] = self._allocate_kv_cache(self.num_cpu_blocks)
 
     def _allocate_kv_cache(
         self,
@@ -74,19 +88,26 @@ class OpenVINOCacheEngine:
     ) -> List[Tuple[ov.Tensor, ov.Tensor]]:
         """Allocates KV cache."""
         k_block_shape = v_block_shape = self.attn_backend.get_kv_cache_shape(
-            num_blocks, self.block_size, self.num_kv_heads, self.head_size)[1:]
+            num_blocks, self.block_size, self.num_kv_heads, self.head_size
+        )[1:]
         kv_cache: List[Tuple[ov.Tensor, ov.Tensor]] = []
         for _ in range(self.num_layers):
             key_blocks = ov.Tensor(self.cache_config.cache_dtype, k_block_shape)
-            value_blocks = ov.Tensor(self.cache_config.cache_dtype, v_block_shape)
+            value_blocks = ov.Tensor(
+                self.cache_config.cache_dtype, v_block_shape
+            )
             kv_cache.append((key_blocks, value_blocks))
         return kv_cache
 
     def swap_in(self, src_to_dst: Dict[int, int]) -> None:
-        raise NotImplementedError("Swap is not supported in OpenVINOCacheEngine.")
+        raise NotImplementedError(
+            "Swap is not supported in OpenVINOCacheEngine."
+        )
 
     def swap_out(self, src_to_dst: Dict[int, int]) -> None:
-        raise NotImplementedError("Swap is not supported in OpenVINOCacheEngine.")
+        raise NotImplementedError(
+            "Swap is not supported in OpenVINOCacheEngine."
+        )
 
     def copy(self, src_to_dsts: Dict[int, List[int]]) -> None:
         self.attn_backend.copy_blocks(self.kv_cache, src_to_dsts)
@@ -105,7 +126,7 @@ class OpenVINOCacheEngine:
         if cache_dtype == ov.Type.u8:
             # Scale, zero point and quantized data will be stored together.
             # The layout for per token per head:
-            # |scale(f32)|zeropoint(f32)|quantized data(u8,idx_1)|quantized data(u8,idx_2)|...|quantized data(u8,idx_head_size)|
+            # |scale(f32)|zeropoint(f32)|quantized data(u8,idx_1)|quantized data(u8,idx_2)|...|quantized data(u8,idx_head_size)| # noqa: E501
             head_size += 8
 
         key_cache_block = block_size * num_kv_heads * head_size
@@ -118,8 +139,8 @@ class OpenVINOCacheEngine:
 class OpenVINOWorker(LoraNotSupportedWorkerBase):
     """A worker class that executes the model on OpenVINO backend.
 
-    Each worker is associated with a single OpenVINO device. The worker is 
-    responsible for maintaining the KV cache and executing the model on the 
+    Each worker is associated with a single OpenVINO device. The worker is
+    responsible for maintaining the KV cache and executing the model on the
     OpenVINO backend.
     """
 
@@ -157,6 +178,7 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
         if self.model_config.trust_remote_code:
             # note: lazy import to avoid importing torch before initializing
             from vllm.utils import init_cached_hf_modules
+
             init_cached_hf_modules()
         self.model_runner = OpenVINOModelRunner(
             model_config,
@@ -168,7 +190,8 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
             lora_config=self.lora_config,
             vision_language_config=self.vision_language_config,
             kv_cache_dtype=kv_cache_dtype,
-            is_driver_worker=is_driver_worker)
+            is_driver_worker=is_driver_worker,
+        )
         # Uninitialized cache engine. Will be initialized by
         # initialize_cache.
         self.cache_engine: OpenVINOCacheEngine
@@ -196,8 +219,9 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
         # For OpenVINO backend, the block number will be calculated based on the
         # openvino_kvcache_space_bytes.
         cache_block_size = self.get_cache_block_size_bytes()
-        num_cpu_blocks = int(self.cache_config.openvino_kvcache_space_bytes //
-                             cache_block_size)
+        num_cpu_blocks = int(
+            self.cache_config.openvino_kvcache_space_bytes // cache_block_size
+        )
         num_cpu_blocks = max(num_cpu_blocks, 0)
 
         # Note: To reuse the cache management procedure,
@@ -206,16 +230,18 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
         num_cpu_blocks = 0
         return num_gpu_blocks, num_cpu_blocks
 
-    def initialize_cache(self, num_gpu_blocks: int,
-                         num_cpu_blocks: int) -> None:
+    def initialize_cache(
+        self, num_gpu_blocks: int, num_cpu_blocks: int
+    ) -> None:
         """Initialize the KV cache. Currently, swappable CPU memory is not
         supported.
 
         Since this worker does not support GPUs, we use the num_gpu_blocks to
         determine how many non-swappable CPU blocks to allocate.
         """
-        assert (num_cpu_blocks == 0
-                ), f"{type(self)} does not support swappable cache"
+        assert (
+            num_cpu_blocks == 0
+        ), f"{type(self)} does not support swappable cache"
 
         # Note: To reuse the cache management procedure,
         # use cpu cache as 'gpu cache'.
@@ -229,12 +255,13 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
         self._init_cache_engine()
 
     def _validate_num_cpu_blocks(self, num_cpu_blocks: int) -> None:
-        """Raise errors if the num_cpu_blocks is invalid.
-        """
+        """Raise errors if the num_cpu_blocks is invalid."""
         if num_cpu_blocks <= 0:
-            raise ValueError("No available memory for the cache blocks. "
-                             "Try increasing `VLLM_OPENVINO_KVCACHE_SPACE` when "
-                             "initializing the engine.")
+            raise ValueError(
+                "No available memory for the cache blocks. "
+                "Try increasing `VLLM_OPENVINO_KVCACHE_SPACE` when "
+                "initializing the engine."
+            )
 
         max_seq_len = self.cache_config.block_size * num_cpu_blocks
         if self.model_config.max_model_len > max_seq_len:
@@ -242,14 +269,17 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
                 f"The model's max seq len ({self.model_config.max_model_len}) "
                 "is larger than the maximum number of tokens that can be "
                 f"stored in KV cache ({max_seq_len}). Try increasing "
-                "`VLLM_OPENVINO_KVCACHE_SPACE` or decreasing `max_model_len` when "
-                "initializing the engine.")
+                "`VLLM_OPENVINO_KVCACHE_SPACE` or decreasing `max_model_len` "
+                "when initializing the engine."
+            )
 
     def _init_cache_engine(self) -> None:
-        self.cache_engine = OpenVINOCacheEngine(self.cache_config,
-                                                self.model_config,
-                                                self.parallel_config,
-                                                self.device_config)
+        self.cache_engine = OpenVINOCacheEngine(
+            self.cache_config,
+            self.model_config,
+            self.parallel_config,
+            self.device_config,
+        )
         self.kv_cache = self.cache_engine.kv_cache
         self.model_runner.block_size = self.cache_engine.block_size
 
@@ -271,7 +301,6 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
         self,
         execute_model_req: Optional[ExecuteModelRequest] = None,
     ) -> List[SamplerOutput]:
-
         if execute_model_req is None:
             seq_group_metadata_list = None
         else:
@@ -300,8 +329,9 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
         if num_seq_groups == 0:
             return []
 
-        output = self.model_runner.execute_model(seq_group_metadata_list,
-                                                 self.kv_cache)
+        output = self.model_runner.execute_model(
+            seq_group_metadata_list, self.kv_cache
+        )
 
         # OpenVINO worker only supports single-step execution.
         return [output]
@@ -324,11 +354,14 @@ class OpenVINOWorker(LoraNotSupportedWorkerBase):
 
         ensure_model_parallel_initialized(
             parallel_config.tensor_parallel_size,
-            parallel_config.pipeline_parallel_size)
+            parallel_config.pipeline_parallel_size,
+        )
 
     def get_cache_block_size_bytes(self) -> int:
-        """Return the size in bytes of a single KV cache block.
-        """
+        """Return the size in bytes of a single KV cache block."""
         return OpenVINOCacheEngine.get_cache_block_size(
-            self.cache_config.block_size, self.cache_config.cache_dtype,
-            self.model_config, self.parallel_config)
+            self.cache_config.block_size,
+            self.cache_config.cache_dtype,
+            self.model_config,
+            self.parallel_config,
+        )

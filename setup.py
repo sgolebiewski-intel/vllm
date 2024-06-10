@@ -293,13 +293,9 @@ def get_nvcc_cuda_version() -> Version:
 
 
 def get_openvino_version():
-    openvino_version = ""
-    try:
-        import openvino
-        openvino_version = openvino.__version__[:8]
-    except:
-        pass
-    return openvino_version
+    import openvino
+    return openvino.__version__[:8]
+
 
 def get_path(*filepath) -> str:
     return os.path.join(ROOT_DIR, *filepath)
@@ -395,7 +391,8 @@ def get_requirements() -> List[str]:
         requirements = _read_requirements("requirements-cpu.txt")
     else:
         raise ValueError(
-            "Unsupported platform, please use CUDA, ROCm, Neuron, OpenVINO, or CPU.")
+            "Unsupported platform, please use CUDA, ROCm, Neuron, "
+            "OpenVINO, or CPU.")
     return requirements
 
 

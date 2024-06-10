@@ -190,7 +190,8 @@ if __name__ == '__main__':
         type=str,
         default="auto",
         choices=["auto", "cuda", "cpu", "openvino"],
-        help='device type for vLLM execution, supporting CUDA, OpenVINO and CPU.')
+        help='device type for vLLM execution, supporting CUDA, OpenVINO and '
+             'CPU.')
     parser.add_argument('--block-size',
                         type=int,
                         default=16,
