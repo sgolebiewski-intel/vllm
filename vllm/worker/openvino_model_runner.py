@@ -1,21 +1,14 @@
 from typing import List, NamedTuple, Optional, Tuple
 
-import torch
 import openvino as ov
+import torch
 from torch import nn
 
 from vllm.attention import get_attn_backend
 from vllm.attention.backends.openvino import OpenVINOAttentionMetadata
-from vllm.config import (
-    CacheConfig,
-    DeviceConfig,
-    LoadConfig,
-    LoRAConfig,
-    ModelConfig,
-    ParallelConfig,
-    SchedulerConfig,
-    VisionLanguageConfig,
-)
+from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoRAConfig,
+                         ModelConfig, ParallelConfig, SchedulerConfig,
+                         VisionLanguageConfig)
 from vllm.logger import init_logger
 from vllm.model_executor import SamplingMetadata
 from vllm.model_executor.model_loader.openvino import get_model

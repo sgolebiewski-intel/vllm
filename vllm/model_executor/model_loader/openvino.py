@@ -2,24 +2,21 @@
 import os
 from pathlib import Path
 from typing import List, Optional, Tuple
-from huggingface_hub import HfApi
 
+import openvino as ov
 import torch
+from huggingface_hub import HfApi
+from openvino._offline_transformations import paged_attention_transformation
 from torch import nn
 
+from vllm.attention.backends.openvino import OpenVINOAttentionMetadata
 from vllm.config import DeviceConfig, ModelConfig
 from vllm.logger import init_logger
-from vllm.model_executor.layers.logits_processor import (
-    LogitsProcessor,
-    _prune_hidden_states,
-)
+from vllm.model_executor.layers.logits_processor import (LogitsProcessor,
+                                                         _prune_hidden_states)
 from vllm.model_executor.layers.sampler import Sampler
 from vllm.model_executor.sampling_metadata import SamplingMetadata
 from vllm.sequence import SamplerOutput
-from vllm.attention.backends.openvino import OpenVINOAttentionMetadata
-
-import openvino as ov
-from openvino._offline_transformations import paged_attention_transformation
 
 logger = init_logger(__name__)
 

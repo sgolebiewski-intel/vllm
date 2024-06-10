@@ -1,6 +1,8 @@
 import os
 from typing import List, Set, Tuple
 
+import openvino as ov
+import openvino.properties.hint as hints
 import torch
 
 from vllm.config import CacheConfig, ModelConfig
@@ -8,15 +10,8 @@ from vllm.executor.executor_base import ExecutorAsyncBase, ExecutorBase
 from vllm.logger import init_logger
 from vllm.lora.request import LoRARequest
 from vllm.sequence import ExecuteModelRequest, SamplerOutput
-from vllm.utils import (
-    get_distributed_init_method,
-    get_ip,
-    get_open_port,
-    make_async,
-)
-
-import openvino as ov
-import openvino.properties.hint as hints
+from vllm.utils import (get_distributed_init_method, get_ip, get_open_port,
+                        make_async)
 
 logger = init_logger(__name__)
 

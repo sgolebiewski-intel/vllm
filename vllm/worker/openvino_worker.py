@@ -1,26 +1,17 @@
 """An OpenVINO worker class."""
 from typing import Any, Dict, List, Optional, Tuple
 
+import openvino as ov
 import torch
 import torch.distributed
-import openvino as ov
 
 from vllm.attention import get_attn_backend
-from vllm.config import (
-    CacheConfig,
-    DeviceConfig,
-    LoadConfig,
-    LoRAConfig,
-    ModelConfig,
-    ParallelConfig,
-    SchedulerConfig,
-    VisionLanguageConfig,
-)
-from vllm.distributed import (
-    broadcast_tensor_dict,
-    ensure_model_parallel_initialized,
-    init_distributed_environment,
-)
+from vllm.config import (CacheConfig, DeviceConfig, LoadConfig, LoRAConfig,
+                         ModelConfig, ParallelConfig, SchedulerConfig,
+                         VisionLanguageConfig)
+from vllm.distributed import (broadcast_tensor_dict,
+                              ensure_model_parallel_initialized,
+                              init_distributed_environment)
 from vllm.logger import init_logger
 from vllm.model_executor import set_random_seed
 from vllm.sequence import ExecuteModelRequest, SamplerOutput

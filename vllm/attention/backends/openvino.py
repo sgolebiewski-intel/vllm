@@ -1,10 +1,12 @@
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
+import openvino as ov
 import torch
+
 from vllm.attention.backends.abstract import (AttentionBackend,
                                               AttentionMetadata)
-import openvino as ov
+
 
 class OpenVINOAttentionBackend(AttentionBackend):
 
