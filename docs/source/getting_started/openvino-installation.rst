@@ -1,84 +1,88 @@
-# Use vLLM with OpenVINO
+.. _installation_openvino:
 
-## Build Docker Image
+Installation with OpenVINO
+========================
 
-```bash
-git clone --branch openvino-model-executor https://github.com/ilya-lavrenov/vllm.git
-cd vllm
-docker build -t vllm:openvino -f Dockerfile.openvino .
-```
+vLLM powered by OpenVINO supports all LLM models from [vLLM supported models list](../dev/models/supported_models.rst) and can perform optimal model serving on all x86-64 CPUs with, at least, AVX2 support. OpenVINO vLLM backend supports the following advanced vLLM features:
 
-Once it successfully finishes you will have a `vllm:openvino` image. It can directly spawn a serving container with OpenAI API endpoint or you can work with it interactively via bash shell.
+- Prefix caching (``--enable-prefix-caching``)
+- Chunked prefill (``--enable-chunked-prefill``)
 
-## Use vLLM serving with OpenAI API
+Table of contents:
 
-_All below steps assume you are in `vllm` root directory._
+#. :ref:`Requirements <openvino_backend_requirements>`
+#. :ref:`Quick start using Dockerfile <openvino_backend_quick_start_dockerfile>`
+#. :ref:`Build from source <binstall_openvino_backend_from_source>`
+#. :ref:`Performance tips <openvino_backend_performance_tips>`
+#. :ref:`Limitations <openvino_backend_limitations>`
 
-### Start The Server:
+.. _openvino_backend_requirements:
 
-```bash
-# It's advised to mount host HuggingFace cache to reuse downloaded models between the runs.
-docker run --rm -p 8000:8000 -v $HOME/.cache/huggingface:/root/.cache/huggingface vllm:openvino --model meta-llama/Llama-2-7b-hf --port 8000 --disable-log-requests --swap-space 50
+Requirements
+------------
 
-### Additional server start up parameters that could be useful:
-# --max-num-seqs <max number of sequences per iteration> (default: 256)
-# --swap-space <GiB for KV cache> (default: 4)
-```
+* OS: Linux
+* Instruction set architecture (ISA) requirement: at least AVX2.
 
-### Request Completion With Curl:
+.. _openvino_backend_quick_start_dockerfile:
 
-```bash
-curl http://localhost:8000/v1/completions -H "Content-Type: application/json" -d '{"model":"meta-llama/Llama-2-7b-hf", "prompt": "What is the key advantage of Openvino framework","max_tokens": 300, "temperature": 0.7}'
-```
+Quick start using Dockerfile
+----------------------------
 
-### Run Benchmark
+.. code-block:: console
 
-Let's run [benchmark_serving.py](https://github.com/ilya-lavrenov/vllm/blob/openvino-model-executor/benchmarks/benchmark_serving.py):
+    $ docker build -f Dockerfile.openvino -t vllm-openvino-env .
+    $ docker run -it --rm vllm-openvino-env
 
-```bash
-cd benchmarks
-# Download dataset
-wget https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
+.. _install_openvino_backend_from_source:
 
-# Install PyPI dependencies (vLLM and aiohttp seem to be enough)
-pip3 install vllm==0.3.3 aiohttp
+Install from source
+-----------------
 
-# Launch benchmark script
-python3 benchmark_serving.py --backend openai --endpoint /v1/completions --port 8000 --model meta-llama/Llama-2-7b-hf --dataset ShareGPT_V3_unfiltered_cleaned_split.json
+- First, install Python. For example, on Ubuntu 22.04, you can run:
 
-### Additional benchmark_serving.py parameters that could be useful:
-# --num-prompts <number of requests to send> (default: 1000)
-# --request-rate <requests sent per second> (default: "inf" - special value "inf" means we send all n requests at once)
-```
+.. code-block:: console
 
+    $ sudo apt-get update  -y
+    $ sudo apt-get install python3
 
-## Use vLLM offline 
+- Second, install prerequisites vLLM OpenVINO backend installation:
 
-_All below steps assume you are in `vllm` root directory._
+.. code-block:: console
 
-The `vllm:openvino` image does not contain any samples by default, but since you have a vLLM repository cloned you can mount it to a container and use the samples from vLLM repository from the inside of the running container
+    $ pip install --upgrade pip
+    $ pip install -r requirements-build.txt --extra-index-url https://download.pytorch.org/whl/cpu
 
-### Run Example
+- Finally, install vLLM with OpenVINO backend: 
 
-Let's run [offline_inference.py](https://github.com/ilya-lavrenov/vllm/blob/openvino-model-executor/examples/offline_inference.py):
+.. code-block:: console
 
-```bash
-# It's advised to mount host HuggingFace cache to reuse downloaded models between the runs.
-docker run --rm -it --entrypoint python3 -v $HOME/.cache/huggingface:/root/.cache/huggingface -v $PWD:/workspace/vllm vllm:openvino /workspace/vllm/examples/offline_inference.py
-```
+    $ PIP_PRE=1 PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu https://storage.openvinotoolkit.org/simple/wheels/nightly/" VLLM_TARGET_DEVICE=openvino python install -v .
 
-### Run Benchmark
+.. _openvino_backend_performance_tips:
 
-You can also run offline benchmark. Let's run [benchmark_throughput.py](https://github.com/ilya-lavrenov/vllm/blob/openvino-model-executor/benchmarks/benchmark_throughput.py):
+Performance tips
+-----------------
 
-```bash
-# Download the dataset
-wget https://huggingface.co/datasets/anon8231489123/ShareGPT_Vicuna_unfiltered/resolve/main/ShareGPT_V3_unfiltered_cleaned_split.json
+vLLM OpenVINO backend uses the following environment variables to control behavior:
 
-# It's advised to mount host HuggingFace cache to reuse downloaded models between the runs.
-docker run --rm -it --entrypoint python3 -v $HOME/.cache/huggingface:/root/.cache/huggingface -v $PWD:/workspace/vllm vllm:openvino /workspace/vllm/benchmarks/benchmark_throughput.py --model meta-llama/Llama-2-7b-hf --dataset /workspace/vllm/ShareGPT_V3_unfiltered_cleaned_split.json --device auto
+- ``VLLM_OPENVINO_KVCACHE_SPACE`` to specify the KV Cache size (e.g, ``VLLM_OPENVINO_KVCACHE_SPACE=40`` means 40 GB space for KV cache), larger setting will allow vLLM running more requests in parallel. This parameter should be set based on the hardware configuration and memory management pattern of users.
 
-### Additional benchmark_throughput.py parameters that could be useful:
-# --num-prompts <number of requests to send> (default: 1000)
-# --swap-space <GiB for KV cache> (default: 50)
-```
+- ``VLLM_OPENVINO_CPU_KV_CACHE_PRECISION=u8`` to control KV cache precision. By default, FP16 / BF16 is used depending on platform.
+
+- ``VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS=ON`` to enable U8 weights compression during model loading stage. By default, compression is turned off.
+
+To enable better latency, you can use vLLM's chunked prefill feature (``--enable-chunked-prefill``). Based on the experiments, the recommended batch size is ``256`` (``--max-num-batched-tokens``)
+
+.. _openvino_backend_limitations:
+
+Limitations
+-----------------
+
+- LoRA serving is not supported.
+
+- Only LLM models are currently supported. LLaVa and encoder-decoder models are not currently enabled in vLLM OpenVINO integration.
+
+- Tensor and pipeline parallelism are not currently enabled in vLLM integration.
+
+- Speculative sampling is not tested within vLLM integration.

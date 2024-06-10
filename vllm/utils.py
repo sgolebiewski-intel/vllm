@@ -148,17 +148,6 @@ def is_openvino() -> bool:
         return False
 
 
-def is_openvino_optimum_intel() -> bool:
-    if os.environ.get('VLLM_OPENVINO_OPTIMUM', '1') == '0':
-        return False
-    is_optimum_intel_available = is_openvino()
-    try:
-        import optimum.intel
-    except:
-        is_optimum_intel_available = False
-    return is_optimum_intel_available
-
-
 @lru_cache(maxsize=None)
 def is_neuron() -> bool:
     try:

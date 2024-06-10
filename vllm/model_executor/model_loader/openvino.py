@@ -19,7 +19,6 @@ from vllm.model_executor.layers.logits_processor import LogitsProcessor, _prune_
 from vllm.model_executor.layers.sampler import Sampler
 from vllm.model_executor.sampling_metadata import SamplingMetadata
 from vllm.sequence import SamplerOutput
-from vllm.utils import is_openvino_optimum_intel
 from vllm.attention.backends.openvino import OpenVINOAttentionMetadata
 
 import openvino as ov
@@ -110,9 +109,6 @@ class OpenVINOCasualLM(nn.Module):
         self.logits_processor = LogitsProcessor(model_config.hf_config.vocab_size,
                                                 logits_as_input=True)
         self.sampler = Sampler()
-
-        if not is_openvino_optimum_intel():
-            raise ValueError("Optimum Intel is not installed. Please, install it via 'pip install optimum-intel[openvino]'")
 
         export = _require_model_export(model_config.model)
         if export:

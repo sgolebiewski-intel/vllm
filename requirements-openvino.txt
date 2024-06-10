@@ -1,10 +1,6 @@
 # Common dependencies
 -r requirements-common.txt
 
---extra-index-url "https://download.pytorch.org/whl/cpu"
---extra-index-url "https://storage.openvinotoolkit.org/simple/wheels/nightly"
---pre
-
 # OpenVINO dependencies
 torch >= 2.1.2
 openvino ~= 2024.3.0.dev
