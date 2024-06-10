@@ -269,11 +269,7 @@ class HfRunner:
         for prompt in prompts:
             input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
             output = self.model.generate(
-<<<<<<< HEAD
-                input_ids,
-=======
                 self.wrap_device(input_ids),
->>>>>>> upstream/main
                 use_cache=True,
                 do_sample=False,
                 max_new_tokens=max_tokens,
@@ -308,11 +304,7 @@ class HfRunner:
         for prompt in prompts:
             input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids
             output = self.model.generate(
-<<<<<<< HEAD
-                input_ids,
-=======
                 self.wrap_device(input_ids),
->>>>>>> upstream/main
                 use_cache=True,
                 do_sample=False,
                 max_new_tokens=max_tokens,
