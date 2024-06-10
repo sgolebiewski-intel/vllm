@@ -348,7 +348,7 @@ if __name__ == "__main__":
         default="auto",
         choices=["auto", "cuda", "cpu", "openvino"],
         help='device type for vLLM execution, supporting CUDA, OpenVINO and '
-             'CPU.')
+        'CPU.')
     parser.add_argument(
         "--enable-prefix-caching",
         action='store_true',

@@ -16,7 +16,7 @@ class OpenVINOAttentionBackend(AttentionBackend):
 
     @staticmethod
     def get_impl_cls():
-        # OpenVINO implements PagedAttention as part of the optimum 
+        # OpenVINO implements PagedAttention as part of the Optimum
         # exported model
         raise NotImplementedError
 

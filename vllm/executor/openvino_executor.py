@@ -17,6 +17,7 @@ logger = init_logger(__name__)
 
 
 class OpenVINOExecutor(ExecutorBase):
+
     def _init_executor(self) -> None:
         assert self.device_config.device_type == "openvino"
         assert self.lora_config is None, "OpenVINO backend doesn't support LoRA"
@@ -34,8 +35,7 @@ class OpenVINOExecutor(ExecutorBase):
         ), "OpenVINOExecutor only supports single CPU socket currently."
 
         distributed_init_method = get_distributed_init_method(
-            get_ip(), get_open_port()
-        )
+            get_ip(), get_open_port())
         self.driver_worker = OpenVINOWorker(
             model_config=self.model_config,
             parallel_config=self.parallel_config,
@@ -60,9 +60,8 @@ class OpenVINOExecutor(ExecutorBase):
         """
         return self.driver_worker.determine_num_available_blocks()
 
-    def initialize_cache(
-        self, num_gpu_blocks: int, num_cpu_blocks: int
-    ) -> None:
+    def initialize_cache(self, num_gpu_blocks: int,
+                         num_cpu_blocks: int) -> None:
         """Initialize the KV cache by invoking the underlying worker."""
         # NOTE: We log here to avoid multiple logs when number of workers is
         # greater than one. We could log in the engine, but not all executors
@@ -74,8 +73,8 @@ class OpenVINOExecutor(ExecutorBase):
         self.driver_worker.initialize_cache(num_gpu_blocks, num_cpu_blocks)
 
     def execute_model(
-        self, execute_model_req: ExecuteModelRequest
-    ) -> List[SamplerOutput]:
+            self,
+            execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
         output = self.driver_worker.execute_model(execute_model_req)
         return output
 
@@ -95,12 +94,12 @@ class OpenVINOExecutor(ExecutorBase):
 
 
 class OpenVINOExecutorAsync(OpenVINOExecutor, ExecutorAsyncBase):
+
     async def execute_model_async(
-        self, execute_model_req: ExecuteModelRequest
-    ) -> List[SamplerOutput]:
-        output = await make_async(self.driver_worker.execute_model)(
-            execute_model_req=execute_model_req,
-        )
+            self,
+            execute_model_req: ExecuteModelRequest) -> List[SamplerOutput]:
+        output = await make_async(self.driver_worker.execute_model
+                                  )(execute_model_req=execute_model_req, )
         return output
 
     async def check_health_async(self) -> None:
@@ -112,30 +111,26 @@ class OpenVINOExecutorAsync(OpenVINOExecutor, ExecutorAsyncBase):
 def _verify_and_get_model_config(config: ModelConfig) -> ModelConfig:
     if config.dtype != torch.float32:
         logger.warning(
-            f"Only float32 dtype is supported on OpenVINO, casting from {config.dtype}." # noqa: G004, E501
+            f"Only float32 dtype is supported on OpenVINO, casting from {config.dtype}."  # noqa: G004, E501
         )
         config.dtype = torch.float32
     if not config.enforce_eager:
         logger.warning(
             "CUDA graph is not supported on OpenVINO backend, fallback to the "
-            "eager mode."
-        )
+            "eager mode.")
         config.enforce_eager = True
     return config
 
 
 def _verify_and_get_cache_config(config: CacheConfig) -> CacheConfig:
     if os.environ.get("VLLM_OPENVINO_CPU_KV_CACHE_PRECISION", "") == "u8":
-        logger.warning(
-            "KV cache type is overried to u8 via "
-            "VLLM_OPENVINO_CPU_KV_CACHE_PRECISION env var."
-        )
+        logger.warning("KV cache type is overried to u8 via "
+                       "VLLM_OPENVINO_CPU_KV_CACHE_PRECISION env var.")
         config.cache_dtype = ov.Type.u8
     else:
         core = ov.Core()
-        inference_precision = core.get_property(
-            "CPU", hints.inference_precision
-        )
+        inference_precision = core.get_property("CPU",
+                                                hints.inference_precision)
         if inference_precision == ov.Type.bf16:
             config.cache_dtype = ov.Type.bf16
         else:
@@ -146,7 +141,7 @@ def _verify_and_get_cache_config(config: CacheConfig) -> CacheConfig:
 
     if config.block_size != 32:
         logger.warning(
-            f"OpenVINO optimal block size is 32, overriding currently set {config.block_size}" # noqa: G004, E501
+            f"OpenVINO optimal block size is 32, overriding currently set {config.block_size}"  # noqa: G004, E501
         )
         config.block_size = 32
 
@@ -156,14 +151,12 @@ def _verify_and_get_cache_config(config: CacheConfig) -> CacheConfig:
             config.openvino_kvcache_space_bytes = 4 * _GB  # type: ignore
             logger.warning(
                 "Environment variable VLLM_OPENVINO_KVCACHE_SPACE (GB) "
-                "for OpenVINO backend is not set, using 4 by default."
-            )
+                "for OpenVINO backend is not set, using 4 by default.")
         else:
             config.openvino_kvcache_space_bytes = kv_cache_space * _GB  # type: ignore
     else:
         raise RuntimeError(
             "Invalid environment variable VLLM_OPENVINO_KVCACHE_SPACE"
-            f" {kv_cache_space}, expect a positive integer value."
-        )
+            f" {kv_cache_space}, expect a positive integer value.")
 
     return config
