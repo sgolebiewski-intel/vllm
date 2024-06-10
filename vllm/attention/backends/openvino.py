@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import torch
-from vllm.attention.backends.abstract import (AttentionBackend)
-
+from vllm.attention.backends.abstract import (AttentionBackend,
+                                              AttentionMetadata)
 import openvino as ov
 
 class OpenVINOAttentionBackend(AttentionBackend):
@@ -53,7 +53,7 @@ class OpenVINOAttentionBackend(AttentionBackend):
 
 
 @dataclass
-class OpenVINOAttentionMetadata:
+class OpenVINOAttentionMetadata(AttentionMetadata):
     """Metadata for OpenVINOAttentionBackend.
     """
     past_lens: torch.Tensor
@@ -61,3 +61,15 @@ class OpenVINOAttentionMetadata:
     block_indices: torch.Tensor
     block_indices_begins: torch.Tensor
     max_context_len: torch.Tensor
+
+    @property
+    def prefill_metadata(self) -> Optional["AttentionMetadata"]:
+        """Return the attention metadata that's required to run prefill
+        attention."""
+        pass
+
+    @property
+    def decode_metadata(self) -> Optional["AttentionMetadata"]:
+        """Return the attention metadata that's required to run decode
+        attention."""
+        pass
