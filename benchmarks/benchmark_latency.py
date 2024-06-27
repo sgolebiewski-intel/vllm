@@ -1,4 +1,4 @@
-"""Benchmark the latency of processing a single batch of requests."""
+"""It benchmarks the latency of processing a single batch of requests."""
 import argparse
 import json
 import time
@@ -124,8 +124,8 @@ def main(args: argparse.Namespace):
 
 if __name__ == '__main__':
     parser = FlexibleArgumentParser(
-        description='Benchmark the latency of processing a single batch of '
-        'requests till completion.')
+        description='It benchmarks the latency of processing a single batch of '
+        'requests until completion.')
     parser.add_argument('--model', type=str, default='facebook/opt-125m')
     parser.add_argument('--speculative-model', type=str, default=None)
     parser.add_argument('--num-speculative-tokens', type=int, default=None)
@@ -145,71 +145,72 @@ if __name__ == '__main__':
     parser.add_argument('--n',
                         type=int,
                         default=1,
-                        help='Number of generated sequences per prompt.')
+                        help='A number of generated sequences per prompt.')
     parser.add_argument('--use-beam-search', action='store_true')
     parser.add_argument('--num-iters-warmup',
                         type=int,
                         default=10,
-                        help='Number of iterations to run for warmup.')
+                        help='A number of iterations to run for warmup.')
     parser.add_argument('--num-iters',
                         type=int,
                         default=30,
-                        help='Number of iterations to run.')
+                        help='A number of iterations to run.')
     parser.add_argument('--trust-remote-code',
                         action='store_true',
-                        help='trust remote code from huggingface')
+                        help='It trusts a remote code from huggingface')
     parser.add_argument(
         '--max-model-len',
         type=int,
         default=None,
-        help='Maximum length of a sequence (including prompt and output). '
-        'If None, will be derived from the model.')
+        help='A maximum length of a sequence (including prompt and output). '
+        'If "None", it will be derived from the model.')
     parser.add_argument(
         '--dtype',
         type=str,
         default='auto',
         choices=['auto', 'half', 'float16', 'bfloat16', 'float', 'float32'],
-        help='data type for model weights and activations. '
+        help='A data type for model weights and activations. '
         'The "auto" option will use FP16 precision '
         'for FP32 and FP16 models, and BF16 precision '
         'for BF16 models.')
     parser.add_argument('--enforce-eager',
                         action='store_true',
-                        help='enforce eager mode and disable CUDA graph')
+                        help='It enforces the eager mode and disables the '
+                        'CUDA graph.')
     parser.add_argument(
         '--kv-cache-dtype',
         type=str,
         choices=['auto', 'fp8', 'fp8_e5m2', 'fp8_e4m3'],
         default="auto",
-        help='Data type for kv cache storage. If "auto", will use model '
+        help='A data type for kv cache storage. If "auto", it will use model '
         'data type. CUDA 11.8+ supports fp8 (=fp8_e4m3) and fp8_e5m2. '
-        'ROCm (AMD GPU) supports fp8 (=fp8_e4m3)')
+        'ROCm (AMD GPU) supports fp8 (=fp8_e4m3).')
     parser.add_argument(
         '--quantization-param-path',
         type=str,
         default=None,
-        help='Path to the JSON file containing the KV cache scaling factors. '
+        help='A path to the JSON file containing the KV cache scaling factors. '
         'This should generally be supplied, when KV cache dtype is FP8. '
         'Otherwise, KV cache scaling factors default to 1.0, which may cause '
         'accuracy issues. FP8_E5M2 (without scaling) is only supported on '
-        'cuda version greater than 11.8. On ROCm (AMD GPU), FP8_E4M3 is '
-        'instead supported for common inference criteria.')
+        'cuda version greater than 11.8. On ROCm (AMD GPU), for common '
+        'inference criteria, FP8_E4M3 is supported instead.')
     parser.add_argument(
         '--profile',
         action='store_true',
-        help='profile the generation process of a single batch')
+        help='It profiles the generation process of a single batch.')
     parser.add_argument(
         '--profile-result-dir',
         type=str,
         default=None,
-        help=('path to save the pytorch profiler output. Can be visualized '
-              'with ui.perfetto.dev or Tensorboard.'))
+        help=('A path to which the pytorch profiler output is saved. Can be '
+              'visualized with ui.perfetto.dev or Tensorboard.'))
     parser.add_argument(
         "--device",
         type=str,
         default="auto",
         choices=["auto", "cuda", "cpu", "openvino", "tpu", "xpu"],
-        help='device type for vLLM execution, supporting CUDA, OpenVINO and '
+        help='A device type for vLLM execution, supporting CUDA, OpenVINO and '
         'CPU.')
     parser.add_argument('--block-size',
                         type=int,
@@ -219,18 +220,19 @@ if __name__ == '__main__':
         '--enable-chunked-prefill',
         action='store_true',
         help='If True, the prefill requests can be chunked based on the '
-        'max_num_batched_tokens')
+        'max_num_batched_tokens.')
     parser.add_argument('--use-v2-block-manager', action='store_true')
     parser.add_argument(
         "--ray-workers-use-nsight",
         action='store_true',
-        help="If specified, use nsight to profile ray workers",
+        help="If specified, use nsight to profile ray workers.",
     )
     parser.add_argument('--download-dir',
                         type=str,
                         default=None,
-                        help='directory to download and load the weights, '
-                        'default to the default cache dir of huggingface')
+                        help='A directory to which the weights are downloaded '
+                        'and loaded; defaults to the default cache dir of '
+                        'huggingface.')
     parser.add_argument(
         '--output-json',
         type=str,
@@ -240,7 +242,7 @@ if __name__ == '__main__':
                         type=float,
                         default=0.9,
                         help='the fraction of GPU memory to be used for '
-                        'the model executor, which can range from 0 to 1.'
+                        'The model executor, which can range from 0 to 1.'
                         'If unspecified, will use the default value of 0.9.')
     parser.add_argument(
         '--load-format',
@@ -260,22 +262,22 @@ if __name__ == '__main__':
         'a numpy cache to speed up the loading.\n'
         '* "dummy" will initialize the weights with random values, '
         'which is mainly for profiling.\n'
-        '* "tensorizer" will load the weights using tensorizer from '
+        '* "tensorizer" will load the weights, using tensorizer from '
         'CoreWeave. See the Tensorize vLLM Model script in the Examples'
         'section for more information.\n'
-        '* "bitsandbytes" will load the weights using bitsandbytes '
+        '* "bitsandbytes" will load the weights, using bitsandbytes '
         'quantization.\n')
     parser.add_argument(
         '--distributed-executor-backend',
         choices=['ray', 'mp'],
         default=None,
-        help='Backend to use for distributed serving. When more than 1 GPU '
-        'is used, will be automatically set to "ray" if installed '
+        help='A backend to use for distributed serving. When more than 1 GPU '
+        'is used, it will be automatically set to "ray" if installed '
         'or "mp" (multiprocessing) otherwise.')
     parser.add_argument(
         '--otlp-traces-endpoint',
         type=str,
         default=None,
-        help='Target URL to which OpenTelemetry traces will be sent.')
+        help='A target URL to which OpenTelemetry traces will be sent.')
     args = parser.parse_args()
     main(args)

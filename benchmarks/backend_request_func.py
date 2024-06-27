@@ -31,9 +31,9 @@ class RequestFuncOutput:
     generated_text: str = ""
     success: bool = False
     latency: float = 0.0
-    ttft: float = 0.0  # Time to first token
+    ttft: float = 0.0  # Time to the first token.
     itl: List[float] = field(
-        default_factory=list)  # List of inter-token latencies
+        default_factory=list)  # A list of inter-token latencies.
     prompt_len: int = 0
     error: str = ""
 
@@ -73,20 +73,20 @@ async def async_request_tgi(
                             continue
                         chunk_bytes = chunk_bytes.decode("utf-8")
 
-                        #NOTE: Sometimes TGI returns a ping response without
-                        # any data, we should skip it.
+                        #NOTE: Sometimes, TGI returns a ping response without
+                        # any data; it should be skipped.
                         if chunk_bytes.startswith(":"):
                             continue
                         chunk = remove_prefix(chunk_bytes, "data:")
 
                         data = json.loads(chunk)
                         timestamp = time.perf_counter()
-                        # First token
+                        # The first token.
                         if ttft == 0.0:
                             ttft = time.perf_counter() - st
                             output.ttft = ttft
 
-                        # Decoding phase
+                        # The decoding phase.
                         else:
                             output.itl.append(timestamp -
                                               most_recent_timestamp)
@@ -147,12 +147,12 @@ async def async_request_trt_llm(
                         data = json.loads(chunk)
                         output.generated_text += data["text_output"]
                         timestamp = time.perf_counter()
-                        # First token
+                        # The first token.
                         if ttft == 0.0:
                             ttft = time.perf_counter() - st
                             output.ttft = ttft
 
-                        # Decoding phase
+                        # The decoding phase.
                         else:
                             output.itl.append(timestamp -
                                               most_recent_timestamp)
@@ -186,14 +186,14 @@ async def async_request_deepspeed_mii(
         payload = {
             "prompt": request_func_input.prompt,
             "max_tokens": request_func_input.output_len,
-            "temperature": 0.01,  # deepspeed-mii does not accept 0.0 temp.
+            "temperature": 0.01,  # DeepSpeed-MII does not accept 0.0 temp.
             "top_p": 1.0,
         }
         output = RequestFuncOutput()
         output.prompt_len = request_func_input.prompt_len
 
-        # NOTE: DeepSpeed-MII doesn't support streaming as of Jan 28 2024,
-        # will use 0 as placeholder.
+        # NOTE: DeepSpeed-MII does not support streaming as of Jan 28 2024,
+        # It will use 0 as a placeholder.
         # See https://github.com/microsoft/DeepSpeed-MII/pull/311
         output.ttft = 0
 
@@ -267,15 +267,15 @@ async def async_request_openai_completions(
 
                             if data["choices"][0]["text"]:
                                 timestamp = time.perf_counter()
-                                # First token
+                                # The first token.
                                 if ttft == 0.0:
                                     ttft = time.perf_counter() - st
                                     output.ttft = ttft
 
-                                # Decoding phase
+                                # The decoding phase.
                                 # NOTE: Some completion API might have a last
-                                # usage summary response without a token so we
-                                # do not want to include as inter-token-latency
+                                # usage summary response without a token, so do
+                                # not include it as inter-token-latency.
                                 elif data.get("usage", None) is None:
                                     output.itl.append(timestamp -
                                                       most_recent_timestamp)
@@ -353,12 +353,12 @@ async def async_request_openai_chat_completions(
 
                             delta = data["choices"][0]["delta"]
                             if delta.get("content", None):
-                                # First token
+                                # The first token.
                                 if ttft == 0.0:
                                     ttft = time.perf_counter() - st
                                     output.ttft = ttft
 
-                                # Decoding phase
+                                # The decoding phase.
                                 else:
                                     output.itl.append(timestamp -
                                                       most_recent_timestamp)
@@ -383,9 +383,9 @@ async def async_request_openai_chat_completions(
     return output
 
 
-# Since vllm must support Python 3.8, we can't use str.removeprefix(prefix)
-# introduced in Python 3.9
-def remove_prefix(text: str, prefix: str) -> str:
+# str.removeprefix(prefix), introduced in Python 3.9, cannot be used
+# since vllm must support Python 3.8.
+def remove_prefix(tex, t: str, prefix: str) -> str:
     if text.startswith(prefix):
         return text[len(prefix):]
     return text
