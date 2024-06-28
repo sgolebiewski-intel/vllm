@@ -22,20 +22,20 @@ hash(prefix tokens + block tokens) <--> KV Block
 With this mapping, we can add another indirection in vLLM’s KV cache management. Previously, each sequence in vLLM maintained a mapping from their logical KV blocks to physical blocks. To achieve automatic caching of KV blocks, we map the logical KV blocks to their hash value and maintain a global hash table of all the physical blocks. In this way, all the KV blocks sharing the same hash value (e.g., shared prefix blocks across two requests) can be mapped to the same physical block and share the memory space.
 
 
-This design achieves automatic prefix caching without the need of maintaining a tree structure among the KV blocks. More specifically, all of the blocks are independent of each other and can be allocated and freed by itself, which enables us to manages the KV cache as ordinary caches in operating system.
+This design achieves automatic prefix caching without the need of maintaining a tree structure among the KV blocks. More specifically, all of the blocks are independent of each other and can be allocated and freed by itself, which enables us to manage the KV cache as ordinary caches in an operating system.
 
 
 # Generalized Caching Policy
 
 Keeping all the KV blocks in a hash table enables vLLM to cache KV blocks from earlier requests to save memory and accelerate the computation of future requests. For example, if a new request shares the system prompt with the previous request, the KV cache of the shared prompt can directly be used for the new request without recomputation. However, the total KV cache space is limited and we have to decide which KV blocks to keep or evict when the cache is full.
 
-Managing KV cache with a hash table allows us to implement flexible caching policies. As an example, in current vLLM, we implement the following eviction policy:
+Managing KV cache with a hash table allows us to implement flexible caching policies. As an example, in the current vLLM, we implement the following eviction policy:
 
-* When there are no free blocks left, we will evict a KV block with reference count (i.e., number of current requests using the block) equals 0.
-* If there are multiple blocks with reference count equals to 0, we prioritize to evict the least recently used block (LRU).
-* If there are multiple blocks whose last access time are the same, we prioritize the eviction of the block that is at the end of the longest prefix (i.e., has the maximum number of blocks before it).
+* When there are no free blocks left, we will evict a KV block with a reference count (i.e., a number of current requests using the block) equals 0.
+* If there are multiple blocks with a reference count equal to 0, we prioritize to evict the least recently used block (LRU).
+* If there are multiple blocks with the same last access time, we prioritize the eviction of the block that is at the end of the longest prefix (i.e., has the maximum number of blocks before it).
 
-Note that this eviction policy effectively implements the exact policy as in [RadixAttention](https://lmsys.org/blog/2024-01-17-sglang/) when applied to models with full attention, which prioritizes to evict reference count zero and least recent used leaf nodes in the prefix tree.
+Note that this eviction policy effectively implements the exact policy as in [RadixAttention](https://lmsys.org/blog/2024-01-17-sglang/) when applied to models with full attention, which prioritizes to evict a reference count equal to zero and least recent used leaf nodes in the prefix tree.
 
 However, the hash-based KV cache management gives us the flexibility to handle more complicated serving scenarios and implement more complicated eviction policies beyond the policy above:
 

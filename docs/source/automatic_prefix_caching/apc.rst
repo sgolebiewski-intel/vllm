@@ -6,19 +6,22 @@ Introduction
 What is Automatic Prefix Caching
 --------------------------------
 
-Automatic Prefix Caching (APC in short) caches the KV cache of existing queries, so that a new query can directly reuse the KV cache if it shares the same prefix with one of the existing queries, allowing the new query to skip the computation of the shared part.
+Automatic Prefix Caching (APC in short) caches the KV cache of existing
+queries, so that a new query can directly reuse the KV cache if it shares the
+same prefix with one of the existing queries, allowing the new query to skip
+the computation of the shared part.
 
 
 .. note::
 
-   Technical details on how vLLM implements APC are in the next page.
+   Technical details on how vLLM implements APC are on the next page.
 
 
 
 Enabling APC in vLLM
 --------------------
 
-Set ``enable_prefix_caching=True`` in vLLM engine to enable APC. Here is an example:
+Set ``enable_prefix_caching=True`` in the vLLM engine to enable APC. Here is an example:
 
 .. code-block:: python
 
@@ -64,16 +67,16 @@ Set ``enable_prefix_caching=True`` in vLLM engine to enable APC. Here is an exam
 
 
     def get_generation_time(llm, sampling_params, prompts):
-        # time the generation
+        # The generation time.
         start_time = time.time()
         output = llm.generate(prompts, sampling_params=sampling_params)
         end_time = time.time()
-        # print the output and generation time
+        # Print the output and generation time.
         print(f"Output: {output[0].outputs[0].text}")
         print(f"Generation time: {end_time - start_time} seconds.")
 
 
-    # set enable_prefix_caching=True to enable APC
+    # Set enable_prefix_caching=True to enable APC.
     llm = LLM(
         model='lmsys/longchat-13b-16k',
         enable_prefix_caching=True
@@ -81,14 +84,14 @@ Set ``enable_prefix_caching=True`` in vLLM engine to enable APC. Here is an exam
 
     sampling_params = SamplingParams(temperature=0, max_tokens=100)
 
-    # Querying the age of John Doe
+    # Querying the age of John Doe.
     get_generation_time(
         llm,
         sampling_params,
         LONG_PROMPT + "Question: what is the age of John Doe? Your answer: The age of John Doe is ",
     )
 
-    # Querying the age of Zack Blue
+    # Querying the age of Zack Blue.
     # This query will be faster since vllm avoids computing the KV cache of LONG_PROMPT again.
     get_generation_time(
         llm,
@@ -101,10 +104,27 @@ Example workloads
 
 We describe two example workloads, where APC can provide huge performance benefit:
 
-- Long document query, where the user repeatedly queries the same long document (e.g. software manual or annual report) with different queries. In this case, instead of processing the long document again and again, APC allows vLLM to process this long document *only once*, and all future requests can avoid recomputing this long document by reusing its KV cache. This allows vLLM to serve future requests with much higher throughput and much lower latency.
-- Multi-round conversation, where the user may chat with the application multiple times in the same chatting session. In this case, instead of processing the whole chatting history again and again, APC allows vLLM to reuse the processing results of the chat history across all future rounds of conversation, allowing vLLM to serve future requests with much higher throughput and much lower latency.
+- A long document query, where the user repeatedly queries the same long
+  document (e.g. software manual or annual report) with different queries.
+  In this case, instead of processing the long document again and again,
+  APC allows vLLM to process this long document *only once*, and all future
+  requests can avoid recomputing this long document by reusing its KV cache.
+  This allows vLLM to serve future requests with much higher throughput and
+  much lower latency.
+- A multi-round conversation, where the user may chat with the application
+  multiple times in the same chatting session. In this case, instead of
+  processing the whole chatting history again and again, APC allows vLLM to
+  reuse the processing results of the chat history across all future rounds
+  of conversation, allowing vLLM to serve future requests with much higher
+  throughput and much lower latency.
 
 
 Limits
 ------
-APC in general does not reduce the performance of vLLM. With that being said, APC only reduces the time of processing the queries (the prefilling phase) and does not reduce the time of generating new tokens (the decoding phase). So APC does not bring performance gain when vLLM spends most of the time generating answers to the queries (e.g. when the length of the answer is long), or new queries do not share the same prefix with any of existing queries (so that the computation cannot be reused).
+APC, in general, does not reduce the performance of vLLM. APC only reduces
+the time of processing the queries (the prefilling phase) and does not
+reduce the time of generating new tokens (the decoding phase). Therefore,
+APC does not bring performance gain when vLLM spends most of the time
+generating answers to the queries (e.g. when the length of the answer is
+long), or new queries do not share the same prefix with any of existing
+queries (so that the computation cannot be reused).
