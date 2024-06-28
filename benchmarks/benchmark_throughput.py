@@ -303,7 +303,7 @@ if __name__ == "__main__":
                         help="Maximum batch size for HF backend.")
     parser.add_argument('--trust-remote-code',
                         action='store_true',
-                        help='trust remote code from huggingface')
+                        help='Trust a remote code from HuggingFace')
     parser.add_argument(
         '--max-model-len',
         type=int,

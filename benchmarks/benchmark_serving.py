@@ -17,7 +17,7 @@ On the client side, run:
         --dataset-path <path to dataset> \
         --request-rate <request_rate> \ # By default <request_rate> is inf
         --num-prompts <num_prompts> # By default <num_prompts> is 1000
-        
+
     when using tgi backend, add
         --endpoint /generate_stream
     to the end of the command above.
@@ -83,14 +83,14 @@ def sample_sharegpt_requests(
         dataset = json.load(f)
     # Filter out the conversations with less than 2 turns.
     dataset = [data for data in dataset if len(data["conversations"]) >= 2]
-    # Only keep the first two turns of each conversation.
+    # Keep only the first two turns of each conversation.
     dataset = [(data["conversations"][0]["value"],
                 data["conversations"][1]["value"]) for data in dataset]
 
     # Shuffle the dataset.
     random.shuffle(dataset)
 
-    # Filter out sequences that are too long or too short
+    # Filter out sequences that are too long or too short.
     filtered_dataset: List[Tuple[str, int, int]] = []
     for i in range(len(dataset)):
         if len(filtered_dataset) == num_requests:
@@ -218,8 +218,8 @@ def calculate_metrics(
         if outputs[i].success:
             # We use the tokenizer to count the number of output tokens for all
             # serving backends instead of looking at len(outputs[i].itl) since
-            # multiple output tokens may be bundled together
-            # Note: this may inflate the output token count slightly
+            # multiple output tokens may be bundled together.
+            # Note that this may inflate the output token count slightly.
             output_len = len(
                 tokenizer(outputs[i].generated_text,
                           add_special_tokens=False).input_ids)
@@ -247,7 +247,7 @@ def calculate_metrics(
         input_throughput=total_input / dur_s,
         output_throughput=sum(actual_output_lens) / dur_s,
         mean_ttft_ms=np.mean(ttfts or 0) *
-        1000,  # ttfts is empty if streaming is not supported by backend
+        1000,  # ttfts is empty if streaming is not supported by backend.
         median_ttft_ms=np.median(ttfts or 0) * 1000,
         p99_ttft_ms=np.percentile(ttfts or 0, 99) * 1000,
         mean_tpot_ms=np.mean(tpots or 0) * 1000,
@@ -427,7 +427,7 @@ def main(args: argparse.Namespace):
         )
 
     elif args.dataset_name == "sonnet":
-        # Do not format the prompt, pass to message directly
+        # Do not format the prompt, pass to message directly.
         if args.backend == "openai-chat":
             input_requests = sample_sonnet_requests(
                 dataset_path=args.dataset_path,
@@ -472,7 +472,7 @@ def main(args: argparse.Namespace):
             disable_tqdm=args.disable_tqdm,
         ))
 
-    # Save config and results to json
+    # Save the config and results to json.
     if args.save_result:
         result_json: Dict[str, Any] = {}
 
@@ -501,10 +501,10 @@ def main(args: argparse.Namespace):
         result_json["request_rate"] = (
             args.request_rate if args.request_rate < float("inf") else "inf")
 
-        # Merge with benchmark result
+        # Merge with benchmark result.
         result_json = {**result_json, **benchmark_result}
 
-        # Save to file
+        # Save to a file.
         base_model_id = model_id.split("/")[-1]
         file_name = f"{backend}-{args.request_rate}qps-{base_model_id}-{current_dt}.json"  #noqa
         if args.result_filename:
@@ -613,21 +613,21 @@ if __name__ == "__main__":
         "--request-rate",
         type=float,
         default=float("inf"),
-        help="Number of requests per second. If this is inf, "
+        help="A number of requests per second. If this is inf, "
         "then all the requests are sent at time 0. "
-        "Otherwise, we use Poisson process to synthesize "
+        "Otherwise, we use the Poisson process to synthesize "
         "the request arrival times.",
     )
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
         "--trust-remote-code",
         action="store_true",
-        help="Trust remote code from huggingface",
+        help="Trust a remote code from HuggingFace",
     )
     parser.add_argument(
         "--disable-tqdm",
         action="store_true",
-        help="Specify to disable tqdm progress bar.",
+        help="Specify to disable the tqdm progress bar.",
     )
     parser.add_argument(
         "--save-result",
@@ -639,22 +639,22 @@ if __name__ == "__main__":
         metavar="KEY=VALUE",
         nargs="*",
         help="Key-value pairs (e.g, --metadata version=0.3.3 tp=1) "
-        "for metadata of this run to be saved in the result JSON file "
+        "Save metadata of this run to the result JSON file "
         "for record keeping purposes.",
     )
     parser.add_argument(
         "--result-dir",
         type=str,
         default=None,
-        help="Specify directory to save benchmark json results."
-        "If not specified, results are saved in the current directory.",
+        help="Specify the directory to which benchmark json results are saved."
+        "If not specified, the results are saved in the current directory.",
     )
     parser.add_argument(
         "--result-filename",
         type=str,
         default=None,
-        help="Specify the filename to save benchmark json results."
-        "If not specified, results will be saved in "
+        help="Specify the filename to which benchmark json results are saved."
+        "If not specified, the results will be saved in "
         "{backend}-{args.request_rate}qps-{base_model_id}-{current_dt}.json"
         " format.",
     )

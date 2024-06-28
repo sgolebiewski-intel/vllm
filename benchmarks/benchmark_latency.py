@@ -157,7 +157,7 @@ if __name__ == '__main__':
                         help='A number of iterations to run.')
     parser.add_argument('--trust-remote-code',
                         action='store_true',
-                        help='It trusts a remote code from huggingface')
+                        help='Trust a remote code from HuggingFace')
     parser.add_argument(
         '--max-model-len',
         type=int,
@@ -225,7 +225,7 @@ if __name__ == '__main__':
     parser.add_argument(
         "--ray-workers-use-nsight",
         action='store_true',
-        help="If specified, use nsight to profile ray workers.",
+        help="If specified, it uses nsight to profile ray workers.",
     )
     parser.add_argument('--download-dir',
                         type=str,
@@ -237,13 +237,13 @@ if __name__ == '__main__':
         '--output-json',
         type=str,
         default=None,
-        help='Path to save the latency results in JSON format.')
+        help='A path to which the latency results in JSON format are saved.')
     parser.add_argument('--gpu-memory-utilization',
                         type=float,
                         default=0.9,
-                        help='the fraction of GPU memory to be used for '
-                        'The model executor, which can range from 0 to 1.'
-                        'If unspecified, will use the default value of 0.9.')
+                        help='The fraction of GPU memory to be used for '
+                        'the model executor, which can range from 0 to 1.'
+                        'If unspecified, it uses the default value of 0.9.')
     parser.add_argument(
         '--load-format',
         type=str,

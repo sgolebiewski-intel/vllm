@@ -18,7 +18,7 @@ class CPUExecutor(ExecutorBase):
 
     def _init_executor(self) -> None:
         assert self.device_config.device_type == "cpu"
-        assert self.lora_config is None, "cpu backend doesn't support LoRA"
+        assert self.lora_config is None, "cpu backend does not support LoRA"
         self.model_config = _verify_and_get_model_config(self.model_config)
         self.cache_config = _verify_and_get_cache_config(self.cache_config)
         self.scheduler_config = _verify_and_get_scheduler_config(
@@ -31,7 +31,7 @@ class CPUExecutor(ExecutorBase):
         from vllm.worker.cpu_worker import CPUWorker
 
         assert self.parallel_config.world_size == 1, (
-            "CPUExecutor only supports single CPU socket currently.")
+            "CPUExecutor only supports a single CPU socket currently.")
 
         distributed_init_method = get_distributed_init_method(
             get_ip(), get_open_port())
@@ -63,12 +63,12 @@ class CPUExecutor(ExecutorBase):
                          num_cpu_blocks: int) -> None:
         """Initialize the KV cache by invoking the underlying worker.
         """
-        # NOTE: We log here to avoid multiple logs when number of workers is
-        # greater than one. We could log in the engine, but not all executors
-        # have GPUs.
-        # NOTE: `cpu block` for CPU backend is located on CPU memory but is
-        # referred as `gpu block`. Because we want to reuse the existing block
-        # management procedure.
+        # NOTE: We log here to avoid multiple logs when the number of workers
+        # is greater than one. We could log in the engine, but not all
+        # executors have GPUs.
+        # NOTE: `cpu block` for the CPU backend is located on the CPU memory
+        # but is referred as `gpu block` since we want to reuse the existing
+        # block management procedure.
         logger.info("# CPU blocks: %d", num_gpu_blocks)
         self.driver_worker.initialize_cache(num_gpu_blocks, num_cpu_blocks)
 
@@ -92,7 +92,7 @@ class CPUExecutor(ExecutorBase):
 
     def check_health(self) -> None:
         # CPUExecutor will always be healthy as long as
-        # it's running.
+        # it is running.
         return
 
 
@@ -107,7 +107,7 @@ class CPUExecutorAsync(CPUExecutor, ExecutorAsyncBase):
 
     async def check_health_async(self) -> None:
         # CPUExecutor will always be healthy as long as
-        # it's running.
+        # it is running.
         return
 
 
@@ -117,7 +117,7 @@ def _verify_and_get_model_config(config: ModelConfig) -> ModelConfig:
         config.dtype = torch.bfloat16
     if not config.enforce_eager:
         logger.warning(
-            "CUDA graph is not supported on CPU, fallback to the eager "
+            "The CUDA graph is not supported on CPU, fallback to the eager "
             "mode.")
         config.enforce_eager = True
     return config
@@ -143,13 +143,14 @@ def _verify_and_get_cache_config(config: CacheConfig) -> CacheConfig:
     if kv_cache_space >= 0:
         if kv_cache_space == 0:
             config.cpu_kvcache_space_bytes = 4 * _GB  # type: ignore
-            logger.warning("Environment variable VLLM_CPU_KVCACHE_SPACE (GB) "
-                           "for CPU backend is not set, using 4 by default.")
+            logger.warning("The VLLM_CPU_KVCACHE_SPACE (GB) Environment "
+                           "variable for the CPU backend is not set, using "
+                           "4 by default.")
         else:
             config.cpu_kvcache_space_bytes = kv_cache_space * _GB  # type: ignore
     else:
         raise RuntimeError(
-            "Invalid environment variable VLLM_CPU_KVCACHE_SPACE"
+            "Invalid VLLM_CPU_KVCACHE_SPACE environment variable "
             f" {kv_cache_space}, expect a positive integer value.")
 
     return config
