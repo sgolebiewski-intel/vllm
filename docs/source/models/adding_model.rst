@@ -6,13 +6,15 @@ Adding a New Model
 This document provides a high-level guide on integrating a `HuggingFace Transformers <https://github.com/huggingface/transformers>`_ model into vLLM.
 
 .. note::
-    The complexity of adding a new model depends heavily on the model's architecture.
-    The process is considerably straightforward if the model shares a similar architecture with an existing model in vLLM.
-    However, for models that include new operators (e.g., a new attention mechanism), the process can be a bit more complex.
+
+   The complexity of adding a new model depends heavily on the model's architecture.
+   The process is considerably straightforward if the model shares a similar architecture with an existing model in vLLM.
+   However, for models that include new operators (e.g., a new attention mechanism), the process can be a bit more complex.
 
 .. tip::
-    If you are encountering issues while integrating your model into vLLM, feel free to open an issue on our `GitHub <https://github.com/vllm-project/vllm/issues>`_ repository.
-    We will be happy to help you out!
+
+   If you are encountering issues while integrating your model into vLLM, feel free to open an issue on our `GitHub <https://github.com/vllm-project/vllm/issues>`_ repository.
+   We will be happy to help you out!
 
 
 0. Fork the vLLM repository
@@ -22,16 +24,21 @@ Start by forking our `GitHub`_ repository and then :ref:`build it from source <b
 This gives you the ability to modify the codebase and test your model.
 
 .. tip::
-    If you don't want to fork the repository and modify vLLM's codebase, please refer to the "Out-of-Tree Model Integration" section below.
+
+   If you do not want to fork the repository and modify vLLM's codebase,
+   refer to the :ref:`"Out-of-Tree Model Integration" <out_of_tree_integration>` section below.
 
 1. Bring your model code
 ------------------------
 
-Clone the PyTorch model code from the HuggingFace Transformers repository and put it into the `vllm/model_executor/models <https://github.com/vllm-project/vllm/tree/main/vllm/model_executor/models>`_ directory.
-For instance, vLLM's `OPT model <https://github.com/vllm-project/vllm/blob/main/vllm/model_executor/models/opt.py>`_ was adapted from the HuggingFace's `modeling_opt.py <https://github.com/huggingface/transformers/blob/main/src/transformers/models/opt/modeling_opt.py>`_ file.
+Clone the PyTorch model code from the HuggingFace Transformers repository and put it into the
+`vllm/model_executor/models <https://github.com/vllm-project/vllm/tree/main/vllm/model_executor/models>`_ directory.
+For instance, vLLM's `OPT model <https://github.com/vllm-project/vllm/blob/main/vllm/model_executor/models/opt.py>`_
+was adapted from the HuggingFace's `modeling_opt.py <https://github.com/huggingface/transformers/blob/main/src/transformers/models/opt/modeling_opt.py>`_ file.
 
 .. warning::
-    When copying the model code, make sure to review and adhere to the code's copyright and licensing terms.
+
+   When copying the model code, make sure to review and adhere to the code's copyright and licensing terms.
 
 
 2. Rewrite the :code:`forward` methods
@@ -42,32 +49,33 @@ Next, you need to rewrite the :code:`forward` methods of your model by following
 1. Remove any unnecessary code, such as the code only used for training.
 2. Change the input parameters:
 
-.. code-block:: diff
+   .. code-block:: diff
 
-    def forward(
-        self,
-        input_ids: torch.Tensor,
-    -    attention_mask: Optional[torch.Tensor] = None,
-    -    position_ids: Optional[torch.LongTensor] = None,
-    -    past_key_values: Optional[List[torch.FloatTensor]] = None,
-    -    inputs_embeds: Optional[torch.FloatTensor] = None,
-    -    labels: Optional[torch.LongTensor] = None,
-    -    use_cache: Optional[bool] = None,
-    -    output_attentions: Optional[bool] = None,
-    -    output_hidden_states: Optional[bool] = None,
-    -    return_dict: Optional[bool] = None,
-    -) -> Union[Tuple, CausalLMOutputWithPast]:
-    +    positions: torch.Tensor,
-    +    kv_caches: List[torch.Tensor],
-    +    attn_metadata: AttentionMetadata,
-    +) -> Optional[SamplerOutput]:
+      def forward(
+          self,
+          input_ids: torch.Tensor,
+      -    attention_mask: Optional[torch.Tensor] = None,
+      -    position_ids: Optional[torch.LongTensor] = None,
+      -    past_key_values: Optional[List[torch.FloatTensor]] = None,
+      -    inputs_embeds: Optional[torch.FloatTensor] = None,
+      -    labels: Optional[torch.LongTensor] = None,
+      -    use_cache: Optional[bool] = None,
+      -    output_attentions: Optional[bool] = None,
+      -    output_hidden_states: Optional[bool] = None,
+      -    return_dict: Optional[bool] = None,
+      -) -> Union[Tuple, CausalLMOutputWithPast]:
+      +    positions: torch.Tensor,
+      +    kv_caches: List[torch.Tensor],
+      +    attn_metadata: AttentionMetadata,
+      +) -> Optional[SamplerOutput]:
 
-1. Update the code by considering that :code:`input_ids` and :code:`positions` are now flattened tensors.
-2. Replace the attention operation with either :code:`PagedAttention`, :code:`PagedAttentionWithRoPE`, or :code:`PagedAttentionWithALiBi` depending on the model's architecture.
+3. Update the code by considering that :code:`input_ids` and :code:`positions` are now flattened tensors.
+4. Replace the attention operation with either :code:`PagedAttention`, :code:`PagedAttentionWithRoPE`, or :code:`PagedAttentionWithALiBi` depending on the model's architecture.
 
 .. note::
-    Currently, vLLM supports the basic multi-head attention mechanism and its variant with rotary positional embeddings.
-    If your model employs a different attention mechanism, you will need to implement a new attention layer in vLLM.
+
+   Currently, vLLM supports the basic multi-head attention mechanism and its variant with rotary positional embeddings.
+   If your model employs a different attention mechanism, you will need to implement a new attention layer in vLLM.
 
 
 3. (Optional) Implement tensor parallelism and quantization support
@@ -97,27 +105,29 @@ This method should load the weights from the HuggingFace's checkpoint file and a
 
 Finally, register your :code:`*ForCausalLM` class to the :code:`_MODELS` in `vllm/model_executor/models/__init__.py <https://github.com/vllm-project/vllm/blob/main/vllm/model_executor/models/__init__.py>`_.
 
+.. _out_of_tree_integration:
+
 6. Out-of-Tree Model Integration
 --------------------------------------------
 
-We also provide a way to integrate a model without modifying the vLLM codebase. Step 2, 3, 4 are still required, but you can skip step 1 and 5.
+We also provide a way to integrate a model without modifying the vLLM codebase. Steps 2, 3, 4 are still required, but you can skip step 1 and 5.
 
 Just add the following lines in your code:
 
 .. code-block:: python
 
-    from vllm import ModelRegistry
-    from your_code import YourModelForCausalLM
-    ModelRegistry.register_model("YourModelForCausalLM", YourModelForCausalLM)
+   from vllm import ModelRegistry
+   from your_code import YourModelForCausalLM
+   ModelRegistry.register_model("YourModelForCausalLM", YourModelForCausalLM)
 
-If you are running api server with `python -m vllm.entrypoints.openai.api_server args`, you can wrap the entrypoint with the following code:
+If you are running API server with `python -m vllm.entrypoints.openai.api_server args`, you can wrap the entrypoint with the following code:
 
 .. code-block:: python
 
-    from vllm import ModelRegistry
-    from your_code import YourModelForCausalLM
-    ModelRegistry.register_model("YourModelForCausalLM", YourModelForCausalLM)
-    import runpy
-    runpy.run_module('vllm.entrypoints.openai.api_server', run_name='__main__')
+   from vllm import ModelRegistry
+   from your_code import YourModelForCausalLM
+   ModelRegistry.register_model("YourModelForCausalLM", YourModelForCausalLM)
+   import runpy
+   runpy.run_module('vllm.entrypoints.openai.api_server', run_name='__main__')
 
-Save the above code in a file and run it with `python your_file.py args`.
+Save the code above to a file and run it with `python your_file.py args`.

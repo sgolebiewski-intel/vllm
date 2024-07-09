@@ -11,23 +11,23 @@ To run multi-GPU inference with the :code:`LLM` class, set the :code:`tensor_par
 
 .. code-block:: python
 
-    from vllm import LLM
-    llm = LLM("facebook/opt-13b", tensor_parallel_size=4)
-    output = llm.generate("San Franciso is a")
+   from vllm import LLM
+   llm = LLM("facebook/opt-13b", tensor_parallel_size=4)
+   output = llm.generate("San Franciso is a")
 
-To run multi-GPU serving, pass in the :code:`--tensor-parallel-size` argument when starting the server. For example, to run API server on 4 GPUs:
+To run multi-GPU serving, specify the :code:`--tensor-parallel-size` argument when starting the server. For example, to run API server on 4 GPUs:
 
 .. code-block:: console
 
-    $ python -m vllm.entrypoints.api_server \
-    $     --model facebook/opt-13b \
-    $     --tensor-parallel-size 4
+   $ python -m vllm.entrypoints.api_server \
+   $     --model facebook/opt-13b \
+   $     --tensor-parallel-size 4
 
 To scale vLLM beyond a single machine, install and start a `Ray runtime <https://docs.ray.io/en/latest/ray-core/starting-ray.html>`_ via CLI before running vLLM:
 
 .. code-block:: console
 
-    $ pip install ray
+   $ pip install ray
 
     $ # On head node
     $ ray start --head
@@ -38,4 +38,6 @@ To scale vLLM beyond a single machine, install and start a `Ray runtime <https:/
 After that, you can run inference and serving on multiple machines by launching the vLLM process on the head node by setting :code:`tensor_parallel_size` to the number of GPUs to be the total number of GPUs across all machines.
 
 .. warning::
-    Please make sure you downloaded the model to all the nodes, or the model is downloaded to some distributed file system that is accessible by all nodes.
+
+   Make sure you downloaded the model to all the nodes, or the model is downloaded
+   to some distributed file system that is accessible by all nodes.
